@@ -1,14 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MovieCard from "../components/MovieCard";
 import { getAllMovies } from "../services/movies";
 import { useAuthStore } from "../store/auth";
-import { getFavorites, addFavorite, removeFavorite } from "../services/favorites";
+import {
+  getFavorites,
+  addFavorite,
+  removeFavorite,
+} from "../services/favorites";
+import { getAllGenres } from "../services/genres";
 
 export default function Movies() {
   const [movies, setMovies] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState(() => new Set());
+  const [search, setSearch] = useState("");
+  const [genres, setGenres] = useState([]);
+  const [selectedGenres, setSelectedGenres] = useState(() => new Set());
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -31,6 +39,19 @@ export default function Movies() {
     };
 
     fetchMovies();
+  }, []);
+
+  useEffect(() => {
+    const fetchGenres = async () => {
+      try {
+        const data = await getAllGenres();
+        setGenres(data ?? []);
+      } catch (err) {
+        console.error("No se pudieron obtener los géneros", err);
+      }
+    };
+
+    fetchGenres();
   }, []);
 
   useEffect(() => {
@@ -109,6 +130,44 @@ export default function Movies() {
     }
   };
 
+  const toggleGenre = (genreId) => {
+    setSelectedGenres((prev) => {
+      const next = new Set(prev);
+      if (next.has(genreId)) {
+        next.delete(genreId);
+      } else {
+        next.add(genreId);
+      }
+      return next;
+    });
+  };
+
+  const clearGenres = () => setSelectedGenres(new Set());
+
+  const filteredMovies = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return movies.filter((movie) => {
+      const title = movie.title?.toLowerCase() ?? "";
+      const description = movie.description?.toLowerCase() ?? "";
+      const matchesSearch =
+        !query || title.includes(query) || description.includes(query);
+
+      if (selectedGenres.size === 0) return matchesSearch;
+
+      const movieGenres = movie.genres ?? [];
+      const movieGenreIds = movieGenres.map((g) =>
+        Number(g.id ?? g.genreId ?? g.genreID)
+      );
+
+      const matchesAllGenres = Array.from(selectedGenres).every((genreId) =>
+        movieGenreIds.includes(genreId)
+      );
+
+      return matchesSearch && matchesAllGenres;
+    });
+  }, [movies, search, selectedGenres]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
@@ -131,10 +190,51 @@ export default function Movies() {
         <h1 className="text-3xl sm:text-4xl md:text-5xl bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent font-bold mb-6 sm:mb-10">
           CATÁLOGO DE PELÍCULAS
         </h1>
+        <div className="max-w-4xl mx-auto flex flex-col gap-4">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por título o descripción"
+            className="w-full px-4 py-3 rounded-lg bg-[#1a1f3a] border border-cyan-500/30 text-white placeholder-gray-500 focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-500/40 transition"
+            aria-label="Buscar películas"
+          />
+          <div className="flex flex-wrap gap-2 justify-center">
+            <button
+              type="button"
+              onClick={clearGenres}
+              className={`px-4 py-2 rounded-full border text-sm transition ${
+                selectedGenres.size === 0
+                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-200"
+                  : "border-cyan-500/30 text-gray-300 hover:border-cyan-400"
+              }`}
+            >
+              Todos los géneros
+            </button>
+            {genres.map((genre) => {
+              const id = Number(genre.id ?? genre.Id);
+              const isActive = selectedGenres.has(id);
+              return (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => toggleGenre(id)}
+                  className={`px-4 py-2 rounded-full border text-sm transition ${
+                    isActive
+                      ? "bg-cyan-500/20 border-cyan-400 text-cyan-200"
+                      : "border-cyan-500/30 text-gray-300 hover:border-cyan-400"
+                  }`}
+                >
+                  {genre.name ?? genre.Name ?? "Género"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-8">
-        {movies.map((movie) => (
+        {filteredMovies.map((movie) => (
           <MovieCard
             key={movie.id}
             movie={{

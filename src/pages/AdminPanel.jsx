@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../store/auth";
 import { Redirect } from "wouter";
 import { useForm } from "react-hook-form";
-import { createMovie, getAllMovies } from "../services/movies";
+import {
+  createMovie,
+  deleteMovie,
+  getAllMovies,
+  updateMovie,
+} from "../services/movies";
 import { getAllGenres } from "../services/genres";
 import { getAllUsers } from "../services/users";
 import { getAllRoles } from "../services/roles";
@@ -27,6 +32,8 @@ export default function AdminPanel() {
   const [genresError, setGenresError] = useState("");
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [genreDropdownOpen, setGenreDropdownOpen] = useState(false);
+  const editGenreDropdownRef = useRef(null);
+  const [editGenreDropdownOpen, setEditGenreDropdownOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersError, setUsersError] = useState("");
   const [usersRefreshing, setUsersRefreshing] = useState(false);
@@ -43,12 +50,47 @@ export default function AdminPanel() {
   const roleDropdownRef = useRef(null);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [movies, setMovies] = useState([]);
+  const [moviesLoading, setMoviesLoading] = useState(false);
+  const [moviesError, setMoviesError] = useState("");
+  const movieDropdownRef = useRef(null);
+  const [movieDropdownOpen, setMovieDropdownOpen] = useState(false);
+  const [deleteMovieLoadingId, setDeleteMovieLoadingId] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedMovieId, setSelectedMovieId] = useState(null);
+  const selectedMovie = movies.find((m) => m.id === selectedMovieId) ?? null;
+  const editMovieDropdownRef = useRef(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editMovieDropdownOpen, setEditMovieDropdownOpen] = useState(false);
+  const [editSelectedMovieId, setEditSelectedMovieId] = useState(null);
+  const editSelectedMovie =
+    movies.find((m) => m.id === editSelectedMovieId) ?? null;
+  const [editSelectedGenres, setEditSelectedGenres] = useState([]);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editFormError, setEditFormError] = useState("");
+  const [editSuccessMessage, setEditSuccessMessage] = useState("");
   const {
     register,
     handleSubmit,
     reset,
     setValue,
     formState: { errors },
+  } = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      posterPath: "",
+      releaseDate: "",
+      rating: "",
+      genreIds: [],
+    },
+  });
+  const {
+    register: registerEdit,
+    handleSubmit: handleEditSubmit,
+    reset: resetEdit,
+    setValue: setEditValue,
+    formState: { errors: editErrors },
   } = useForm({
     defaultValues: {
       title: "",
@@ -82,16 +124,23 @@ export default function AdminPanel() {
     }
   };
 
-  const loadMovies = async () => {
+  const loadMovies = async (withSpinner = false) => {
     try {
+      if (withSpinner) setMoviesLoading(true);
+      setMoviesError("");
       const data = await getAllMovies();
       const list = Array.isArray(data) ? data : [];
-      setStats((prev) => ({
-        ...prev,
-        moviesCount: list.length,
-      }));
+      setMovies(list);
+      setStats((prev) => ({ ...prev, moviesCount: list.length }));
     } catch (err) {
+      const message =
+        err?.response?.data?.message ??
+        err?.message ??
+        "Error al obtener películas";
+      setMoviesError(message);
       console.error("Error al obtener películas", err);
+    } finally {
+      if (withSpinner) setMoviesLoading(false);
     }
   };
 
@@ -138,7 +187,12 @@ export default function AdminPanel() {
     const initialize = async () => {
       setPageLoading(true);
       try {
-        await Promise.all([loadUsers(), loadMovies(), loadGenres(), loadRoles()]);
+        await Promise.all([
+          loadUsers(),
+          loadMovies(true),
+          loadGenres(),
+          loadRoles(),
+        ]);
       } finally {
         if (active) setPageLoading(false);
       }
@@ -159,6 +213,13 @@ export default function AdminPanel() {
   }, [register]);
 
   useEffect(() => {
+    registerEdit("genreIds", {
+      validate: (value) =>
+        value && value.length > 0 ? true : "Seleccioná al menos un género",
+    });
+  }, [registerEdit]);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setGenreDropdownOpen(false);
@@ -174,6 +235,24 @@ export default function AdminPanel() {
         !roleDropdownRef.current.contains(event.target)
       ) {
         setRoleDropdownOpen(false);
+      }
+      if (
+        movieDropdownRef.current &&
+        !movieDropdownRef.current.contains(event.target)
+      ) {
+        setMovieDropdownOpen(false);
+      }
+      if (
+        editGenreDropdownRef.current &&
+        !editGenreDropdownRef.current.contains(event.target)
+      ) {
+        setEditGenreDropdownOpen(false);
+      }
+      if (
+        editMovieDropdownRef.current &&
+        !editMovieDropdownRef.current.contains(event.target)
+      ) {
+        setEditMovieDropdownOpen(false);
       }
     };
 
@@ -308,7 +387,8 @@ export default function AdminPanel() {
       setSubmitting(true);
       setFormError("");
       setSuccessMessage("");
-      const genreIdsRaw = values.genreIds ?? [];
+      const genreIdsRaw =
+        selectedGenres.length > 0 ? selectedGenres : values.genreIds ?? [];
       const genreIdsArray = Array.isArray(genreIdsRaw)
         ? genreIdsRaw
         : [genreIdsRaw];
@@ -338,6 +418,165 @@ export default function AdminPanel() {
       setFormError(message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openEditModal = async () => {
+    setEditFormError("");
+    setEditSuccessMessage("");
+    setEditSelectedMovieId(null);
+    setEditSelectedGenres([]);
+    setEditGenreDropdownOpen(false);
+    resetEdit();
+    setEditModalOpen(true);
+    if (!movies.length) {
+      await loadMovies(true);
+    }
+  };
+
+  const closeEditModal = () => {
+    setEditModalOpen(false);
+    setEditMovieDropdownOpen(false);
+    setEditSelectedMovieId(null);
+    setEditSelectedGenres([]);
+    setEditGenreDropdownOpen(false);
+    setEditFormError("");
+    setEditSuccessMessage("");
+    resetEdit();
+  };
+
+  const handleSelectMovieForEdit = (movie) => {
+    if (!movie) return;
+    setEditSelectedMovieId(movie.id);
+    const genreIds =
+      movie.genres
+        ?.map((g) => Number(g.id ?? g.genreId ?? g.GenreId))
+        .filter((id) => Number.isFinite(id)) ?? [];
+    setEditSelectedGenres(genreIds);
+    resetEdit({
+      title: movie.title ?? movie.Title ?? "",
+      description: movie.description ?? movie.Description ?? "",
+      posterPath:
+        movie.posterPath ??
+        movie.poster_path ??
+        movie.posterUrl ??
+        movie.PosterPath ??
+        "",
+      releaseDate:
+        movie.releaseDate ??
+        movie.release_date ??
+        movie.ReleaseDate ??
+        "",
+      rating:
+        typeof movie.rating === "number"
+          ? movie.rating
+          : movie.Rating ?? movie.rating ?? "",
+      genreIds,
+    });
+    setEditValue("genreIds", genreIds, { shouldValidate: true });
+    setEditMovieDropdownOpen(false);
+  };
+
+  const toggleEditGenre = (genreId) => {
+    const numericId = Number(genreId);
+    setEditSelectedGenres((prev) => {
+      const exists = prev.includes(numericId);
+      const next = exists
+        ? prev.filter((id) => id !== numericId)
+        : [...prev, numericId];
+      setEditValue("genreIds", next, { shouldValidate: true });
+      return next;
+    });
+  };
+
+  const onEditSubmit = async (values) => {
+    if (!editSelectedMovieId) {
+      setEditFormError("Seleccioná una película para editar.");
+      return;
+    }
+    try {
+      setEditSubmitting(true);
+      setEditFormError("");
+      setEditSuccessMessage("");
+      const rawGenreIds =
+        editSelectedGenres.length > 0
+          ? editSelectedGenres
+          : values.genreIds ?? [];
+      const genreIdsArray = Array.isArray(rawGenreIds)
+        ? rawGenreIds
+        : [rawGenreIds];
+      const payload = {
+        title: values.title ?? "",
+        description: values.description ?? "",
+        posterPath: values.posterPath ?? "",
+        releaseDate: values.releaseDate ?? "",
+        rating:
+          values.rating === "" || values.rating === null
+            ? null
+            : parseFloat(values.rating),
+        genreIds: genreIdsArray.map((id) => parseInt(id, 10)).filter(Boolean),
+      };
+      await updateMovie(editSelectedMovieId, payload);
+      await loadMovies();
+      setEditSuccessMessage("Película actualizada correctamente");
+      setTimeout(() => {
+        closeEditModal();
+      }, 1200);
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ??
+        err?.message ??
+        "No se pudo actualizar la película";
+      setEditFormError(message);
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleOpenDeleteModal = async () => {
+    setSelectedMovieId(null);
+    setMovieDropdownOpen(false);
+    setDeleteModalOpen(true);
+    if (!movies.length) {
+      await loadMovies(true);
+    }
+  };
+
+  const handleCloseDeleteModal = () => {
+    setDeleteModalOpen(false);
+    setMovieDropdownOpen(false);
+    setSelectedMovieId(null);
+    setDeleteMovieLoadingId(null);
+  };
+
+  const handleDeleteMovieSubmit = async () => {
+    if (!selectedMovieId) {
+      alert("Seleccioná una película antes de eliminar");
+      return;
+    }
+
+    const movie = movies.find((m) => m.id === selectedMovieId);
+    const title = movie?.title ?? "la película";
+    if (!window.confirm(`¿Eliminar "${title}"?`)) return;
+
+    try {
+      setDeleteMovieLoadingId(selectedMovieId);
+      await deleteMovie(selectedMovieId);
+      setMovies((prev) => prev.filter((m) => m.id !== selectedMovieId));
+      setStats((prev) => ({
+        ...prev,
+        moviesCount: Math.max(prev.moviesCount - 1, 0),
+      }));
+      alert(`Película "${title}" eliminada correctamente`);
+      handleCloseDeleteModal();
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ??
+        err?.message ??
+        "No se pudo eliminar la película";
+      alert(message);
+    } finally {
+      setDeleteMovieLoadingId(null);
     }
   };
 
@@ -398,7 +637,7 @@ export default function AdminPanel() {
         </div>
 
         {/* Acciones */}
-        <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-4 gap-6">
           <button
             onClick={() => setModalOpen(true)}
             className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 duration-300"
@@ -411,6 +650,18 @@ export default function AdminPanel() {
             className="bg-gradient-to-r from-magenta-500 to-pink-500 hover:from-magenta-400 hover:to-pink-400 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-magenta-500/50 transform hover:scale-105 duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Gestionar Usuarios
+          </button>
+          <button
+            onClick={handleOpenDeleteModal}
+            className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white font-bold py-4 px-6 rounded-xl transition shadow-lg hover:shadow-red-500/40 transform hover:scale-105 duration-300"
+          >
+            Eliminar Película
+          </button>
+          <button
+            onClick={openEditModal}
+            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold py-4 px-6 rounded-xl transition shadow-lg hover:shadow-amber-500/40 transform hover:scale-105 duration-300"
+          >
+            Editar Película
           </button>
         </div>
 
@@ -609,6 +860,377 @@ export default function AdminPanel() {
                   className="px-4 py-2 rounded-lg bg-cyan-600/80 hover:bg-cyan-500 transition font-semibold disabled:opacity-50"
                 >
                   {roleFormSubmitting ? "Guardando..." : "Guardar cambios"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#0f1228] border border-red-500/40 rounded-2xl w-full max-w-lg p-6 relative">
+            <button
+              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
+              onClick={handleCloseDeleteModal}
+              disabled={!!deleteMovieLoadingId}
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-bold mb-1 text-white">
+              Eliminar película
+            </h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Seleccioná la película que querés eliminar del catálogo.
+            </p>
+
+            {moviesError && (
+              <div className="text-red-400 text-sm mb-4 flex flex-col gap-2">
+                <span>{moviesError}</span>
+                <button
+                  type="button"
+                  onClick={() => loadMovies(true)}
+                  disabled={moviesLoading}
+                  className="self-start px-3 py-1 rounded bg-red-500/30 hover:bg-red-500/50 text-red-100 transition disabled:opacity-60"
+                >
+                  {moviesLoading ? "Reintentando..." : "Reintentar"}
+                </button>
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm text-gray-300 mb-1 block">
+                Película
+              </label>
+              <div ref={movieDropdownRef} className="relative">
+                <button
+                  type="button"
+                  disabled={moviesLoading}
+                  onClick={() => setMovieDropdownOpen((prev) => !prev)}
+                  className="w-full bg-[#1a1f3a] border border-red-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-red-400 focus:outline-none disabled:opacity-60"
+                >
+                  <span>
+                    {selectedMovie
+                      ? selectedMovie.title ?? `ID ${selectedMovie.id}`
+                      : moviesLoading
+                      ? "Cargando películas..."
+                      : movies.length
+                      ? "Seleccioná una película"
+                      : "No hay películas disponibles"}
+                  </span>
+                  <span>{movieDropdownOpen ? "▲" : "▼"}</span>
+                </button>
+                {movieDropdownOpen && (
+                  <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-red-500/40 rounded-lg shadow-xl">
+                    {moviesLoading ? (
+                      <p className="text-xs text-gray-400 px-4 py-2">
+                        Cargando películas...
+                      </p>
+                    ) : movies.length ? (
+                      movies.map((movieItem) => {
+                        const active = selectedMovieId === movieItem.id;
+                        return (
+                          <button
+                            type="button"
+                            key={movieItem.id}
+                            onClick={() => {
+                              setSelectedMovieId(movieItem.id);
+                              setMovieDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 text-sm transition ${
+                              active
+                                ? "bg-red-500/20 text-red-200"
+                                : "text-gray-200 hover:bg-red-500/10"
+                            }`}
+                          >
+                            {movieItem.title ?? `Película ${movieItem.id}`}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-gray-400 px-4 py-2">
+                        No hay películas para eliminar.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-8">
+              <button
+                type="button"
+                onClick={handleCloseDeleteModal}
+                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-gray-700/40 transition disabled:opacity-50"
+                disabled={!!deleteMovieLoadingId}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteMovieSubmit}
+                disabled={!selectedMovieId || !!deleteMovieLoadingId}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 transition font-semibold text-white disabled:opacity-50"
+              >
+                {deleteMovieLoadingId ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#0f1228] border border-amber-500/40 rounded-2xl w-full max-w-2xl p-6 relative">
+            <button
+              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
+              onClick={closeEditModal}
+              disabled={editSubmitting}
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-bold mb-2 text-white">
+              Editar película
+            </h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Seleccioná una película para precargar sus datos y actualizá los
+              campos necesarios.
+            </p>
+
+            {editFormError && (
+              <p className="text-red-400 text-sm mb-3">{editFormError}</p>
+            )}
+            {editSuccessMessage && (
+              <p className="text-emerald-400 text-sm mb-3">
+                {editSuccessMessage}
+              </p>
+            )}
+
+            <div className="mb-6">
+              <label className="text-sm text-gray-300 mb-1 block">
+                Película a editar
+              </label>
+              <div ref={editMovieDropdownRef} className="relative">
+                <button
+                  type="button"
+                  disabled={moviesLoading}
+                  onClick={() =>
+                    setEditMovieDropdownOpen((prev) => !prev && !!movies.length)
+                  }
+                  className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-amber-400 focus:outline-none disabled:opacity-60"
+                >
+                  <span>
+                    {editSelectedMovie
+                      ? editSelectedMovie.title ?? "Película seleccionada"
+                      : moviesLoading
+                      ? "Cargando películas..."
+                      : movies.length
+                      ? "Seleccioná una película"
+                      : "No hay películas disponibles"}
+                  </span>
+                  <span>{editMovieDropdownOpen ? "▲" : "▼"}</span>
+                </button>
+                {editMovieDropdownOpen && (
+                  <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-amber-500/40 rounded-lg shadow-xl">
+                    {moviesLoading ? (
+                      <p className="text-xs text-gray-400 px-4 py-2">
+                        Cargando películas...
+                      </p>
+                    ) : movies.length ? (
+                      movies.map((movieItem) => {
+                        const active = editSelectedMovieId === movieItem.id;
+                        return (
+                          <button
+                            type="button"
+                            key={movieItem.id}
+                            onClick={() => handleSelectMovieForEdit(movieItem)}
+                            className={`w-full text-left px-4 py-2 text-sm transition ${
+                              active
+                                ? "bg-amber-500/20 text-amber-200"
+                                : "text-gray-200 hover:bg-amber-500/10"
+                            }`}
+                          >
+                            {movieItem.title ?? `Película ${movieItem.id}`}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-gray-400 px-4 py-2">
+                        No hay películas para editar.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={handleEditSubmit(onEditSubmit)}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-gray-300 mb-1 block">
+                    Título
+                  </label>
+                  <input
+                    {...registerEdit("title", { required: true })}
+                    disabled={!editSelectedMovie || editSubmitting}
+                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
+                    placeholder="Título de la película"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-300 mb-1 block">
+                    Fecha de estreno
+                  </label>
+                  <input
+                    type="date"
+                    {...registerEdit("releaseDate")}
+                    disabled={!editSelectedMovie || editSubmitting}
+                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-gray-300 mb-1 block">
+                  Descripción
+                </label>
+                <textarea
+                  {...registerEdit("description")}
+                  disabled={!editSelectedMovie || editSubmitting}
+                  className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
+                  rows={3}
+                  placeholder="Actualizá la sinopsis"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-gray-300 mb-1 block">
+                    Poster URL
+                  </label>
+                  <input
+                    {...registerEdit("posterPath")}
+                    disabled={!editSelectedMovie || editSubmitting}
+                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
+                    placeholder="https://..."
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-300 mb-1 block">
+                    Rating
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="10"
+                    {...registerEdit("rating")}
+                    disabled={!editSelectedMovie || editSubmitting}
+                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-300 mb-1 block">
+                  Géneros
+                </label>
+                <div className="relative" ref={editGenreDropdownRef}>
+                  <button
+                    type="button"
+                    disabled={
+                      !editSelectedMovie ||
+                      genresLoading ||
+                      !!genresError ||
+                      editSubmitting
+                    }
+                    onClick={() =>
+                      !editSelectedMovie
+                        ? null
+                        : setEditGenreDropdownOpen((prev) => !prev)
+                    }
+                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-amber-400 focus:outline-none disabled:opacity-60"
+                  >
+                    <span>
+                      {editSelectedGenres.length
+                        ? "Editar géneros seleccionados"
+                        : "Seleccioná géneros"}
+                    </span>
+                    <span>{editGenreDropdownOpen ? "▲" : "▼"}</span>
+                  </button>
+                  {editGenreDropdownOpen &&
+                    !genresLoading &&
+                    !genresError &&
+                    editSelectedMovie && (
+                      <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-amber-500/40 rounded-lg shadow-xl">
+                        {genres.map((genre) => {
+                          const id = Number(genre.id ?? genre.Id);
+                          const active = editSelectedGenres.includes(id);
+                          return (
+                            <button
+                              type="button"
+                              key={`${genre.id ?? genre.Id}`}
+                              onClick={() => toggleEditGenre(id)}
+                              className={`w-full text-left px-4 py-2 text-sm transition ${
+                                active
+                                  ? "bg-amber-500/20 text-amber-200"
+                                  : "text-gray-200 hover:bg-amber-500/10"
+                              }`}
+                            >
+                              {genre.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                </div>
+                {editSelectedGenres.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {editSelectedGenres.map((id) => {
+                      const genre = genres.find(
+                        (g) => Number(g.id ?? g.Id) === id
+                      );
+                      return (
+                        <span
+                          key={id}
+                          className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-100 text-xs flex items-center gap-2 border border-amber-500/30"
+                        >
+                          {genre?.name ?? `ID ${id}`}
+                          <button
+                            type="button"
+                            className="text-amber-200 hover:text-white"
+                            onClick={() => toggleEditGenre(id)}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {editErrors.genreIds && (
+                  <p className="text-red-400 text-sm mt-1">
+                    {editErrors.genreIds.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-gray-700/40 transition disabled:opacity-50"
+                  disabled={editSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editSelectedMovie || editSubmitting}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 transition font-semibold text-white disabled:opacity-50"
+                >
+                  {editSubmitting ? "Guardando..." : "Guardar cambios"}
                 </button>
               </div>
             </form>
