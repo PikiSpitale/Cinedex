@@ -463,10 +463,7 @@ export default function AdminPanel() {
         movie.PosterPath ??
         "",
       releaseDate:
-        movie.releaseDate ??
-        movie.release_date ??
-        movie.ReleaseDate ??
-        "",
+        movie.releaseDate ?? movie.release_date ?? movie.ReleaseDate ?? "",
       rating:
         typeof movie.rating === "number"
           ? movie.rating
@@ -600,7 +597,7 @@ export default function AdminPanel() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#0f1228] to-[#12152f] text-white p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-12">
+        <div className="mb-12 text-center">
           <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent mb-2">
             Panel de Administración
           </h1>
@@ -637,20 +634,14 @@ export default function AdminPanel() {
         </div>
 
         {/* Acciones */}
-        <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
           <button
             onClick={() => setModalOpen(true)}
             className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 duration-300"
           >
             + Agregar Película
           </button>
-          <button
-            onClick={() => openRoleModal()}
-            disabled={users.length === 0}
-            className="bg-gradient-to-r from-magenta-500 to-pink-500 hover:from-magenta-400 hover:to-pink-400 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-magenta-500/50 transform hover:scale-105 duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Gestionar Usuarios
-          </button>
+
           <button
             onClick={handleOpenDeleteModal}
             className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white font-bold py-4 px-6 rounded-xl transition shadow-lg hover:shadow-red-500/40 transform hover:scale-105 duration-300"
@@ -664,7 +655,15 @@ export default function AdminPanel() {
             Editar Película
           </button>
         </div>
-
+        <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-1 gap-6">
+          <button
+            onClick={() => openRoleModal()}
+            disabled={users.length === 0}
+            className="bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/50 transform hover:scale-105 duration-300"
+          >
+            Gestionar Roles de Usuarios
+          </button>
+        </div>
         {usersError && (
           <p className="text-red-400 text-sm mb-8">{usersError}</p>
         )}
