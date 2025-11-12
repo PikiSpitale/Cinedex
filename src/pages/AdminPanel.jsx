@@ -8,7 +8,12 @@ import {
   getAllMovies,
   updateMovie,
 } from "../services/movies";
-import { getAllGenres } from "../services/genres";
+import {
+  createGenre,
+  deleteGenre,
+  getAllGenres,
+  updateGenre,
+} from "../services/genres";
 import { getAllUsers } from "../services/users";
 import { getAllRoles } from "../services/roles";
 import { updateUserRoles } from "../services/auth";
@@ -17,6 +22,7 @@ export default function AdminPanel() {
   const [stats, setStats] = useState({
     usersCount: 0,
     moviesCount: 0,
+    genresCount: 0,
     forumsCount: 0,
     reviewsCount: 0,
   });
@@ -69,6 +75,23 @@ export default function AdminPanel() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editFormError, setEditFormError] = useState("");
   const [editSuccessMessage, setEditSuccessMessage] = useState("");
+  const [genreCreateModalOpen, setGenreCreateModalOpen] = useState(false);
+  const [genreCreateSubmitting, setGenreCreateSubmitting] = useState(false);
+  const [genreCreateError, setGenreCreateError] = useState("");
+  const [genreCreateSuccess, setGenreCreateSuccess] = useState("");
+  const [genreEditModalOpen, setGenreEditModalOpen] = useState(false);
+  const [genreEditPickerOpen, setGenreEditPickerOpen] = useState(false);
+  const genreEditPickerRef = useRef(null);
+  const [genreEditSelectedId, setGenreEditSelectedId] = useState(null);
+  const [genreEditSubmitting, setGenreEditSubmitting] = useState(false);
+  const [genreEditFormError, setGenreEditFormError] = useState("");
+  const [genreEditSuccessMessage, setGenreEditSuccessMessage] = useState("");
+  const [genreDeleteModalOpen, setGenreDeleteModalOpen] = useState(false);
+  const [genreDeletePickerOpen, setGenreDeletePickerOpen] = useState(false);
+  const genreDeletePickerRef = useRef(null);
+  const [selectedGenreToDeleteId, setSelectedGenreToDeleteId] = useState(null);
+  const [deleteGenreLoadingId, setDeleteGenreLoadingId] = useState(null);
+  const [genreDeleteError, setGenreDeleteError] = useState("");
   const {
     register,
     handleSubmit,
@@ -99,6 +122,28 @@ export default function AdminPanel() {
       releaseDate: "",
       rating: "",
       genreIds: [],
+    },
+  });
+  const {
+    register: registerGenreCreate,
+    handleSubmit: handleGenreCreateSubmit,
+    reset: resetGenreCreate,
+    formState: { errors: genreCreateErrors },
+  } = useForm({
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
+  const {
+    register: registerGenreEdit,
+    handleSubmit: handleGenreEditSubmit,
+    reset: resetGenreEdit,
+    formState: { errors: genreEditErrors },
+  } = useForm({
+    defaultValues: {
+      name: "",
+      description: "",
     },
   });
 
@@ -149,7 +194,38 @@ export default function AdminPanel() {
       setGenresLoading(true);
       setGenresError("");
       const data = await getAllGenres();
-      setGenres(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setGenres(list);
+      setStats((prev) => ({ ...prev, genresCount: list.length }));
+      const availableIds = new Set(
+        list
+          .map((genre) => getGenreNumericId(genre))
+          .filter((id) => id !== null)
+      );
+      setSelectedGenres((prev) => {
+        const filtered = prev.filter((id) => availableIds.has(id));
+        if (filtered.length !== prev.length) {
+          setValue("genreIds", filtered, { shouldValidate: true });
+        }
+        return filtered;
+      });
+      setEditSelectedGenres((prev) => {
+        const filtered = prev.filter((id) => availableIds.has(id));
+        if (filtered.length !== prev.length) {
+          setEditValue("genreIds", filtered, { shouldValidate: true });
+        }
+        return filtered;
+      });
+      setSelectedGenreToDeleteId((prev) =>
+        prev !== null && availableIds.has(prev) ? prev : null
+      );
+      setGenreEditSelectedId((prev) => {
+        const next = prev !== null && availableIds.has(prev) ? prev : null;
+        if (next === null && prev !== null) {
+          resetGenreEdit();
+        }
+        return next;
+      });
     } catch (err) {
       const message =
         err?.response?.data?.message ??
@@ -254,6 +330,18 @@ export default function AdminPanel() {
       ) {
         setEditMovieDropdownOpen(false);
       }
+      if (
+        genreEditPickerRef.current &&
+        !genreEditPickerRef.current.contains(event.target)
+      ) {
+        setGenreEditPickerOpen(false);
+      }
+      if (
+        genreDeletePickerRef.current &&
+        !genreDeletePickerRef.current.contains(event.target)
+      ) {
+        setGenreDeletePickerOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -264,12 +352,36 @@ export default function AdminPanel() {
     typeof r === "string" ? r === "Admin" : r?.name === "Admin"
   );
 
+  const toGenreNumericId = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
+  const getGenreNumericId = (genre) => {
+    if (!genre) return null;
+    return toGenreNumericId(
+      genre.id ??
+        genre.Id ??
+        genre.genreId ??
+        genre.genreID ??
+        genre.GenreId ??
+        genre.GenreID
+    );
+  };
+
+  const findGenreById = (genreId) =>
+    genres.find((genre) => getGenreNumericId(genre) === genreId) ?? null;
+
   const toggleGenre = (genreId) => {
+    const numericId = toGenreNumericId(genreId);
+    if (numericId === null) {
+      return;
+    }
     setSelectedGenres((prev) => {
-      const exists = prev.includes(genreId);
+      const exists = prev.includes(numericId);
       const next = exists
-        ? prev.filter((id) => id !== genreId)
-        : [...prev, genreId];
+        ? prev.filter((id) => id !== numericId)
+        : [...prev, numericId];
       setValue("genreIds", next, { shouldValidate: true });
       return next;
     });
@@ -577,6 +689,163 @@ export default function AdminPanel() {
     }
   };
 
+  const openGenreCreateModal = () => {
+    setGenreCreateError("");
+    setGenreCreateSuccess("");
+    resetGenreCreate();
+    setGenreCreateModalOpen(true);
+  };
+
+  const closeGenreCreateModal = () => {
+    setGenreCreateModalOpen(false);
+    setGenreCreateError("");
+    setGenreCreateSuccess("");
+    resetGenreCreate();
+  };
+
+  const onCreateGenreSubmit = async (values) => {
+    try {
+      setGenreCreateSubmitting(true);
+      setGenreCreateError("");
+      setGenreCreateSuccess("");
+      await createGenre({
+        name: values.name?.trim() ?? "",
+        description: values.description?.trim() ?? "",
+      });
+      await loadGenres();
+      setGenreCreateSuccess("Género creado correctamente");
+      setTimeout(() => {
+        closeGenreCreateModal();
+      }, 1200);
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ??
+        err?.message ??
+        "No se pudo crear el género";
+      setGenreCreateError(message);
+    } finally {
+      setGenreCreateSubmitting(false);
+    }
+  };
+
+  const openGenreEditModal = async () => {
+    setGenreEditFormError("");
+    setGenreEditSuccessMessage("");
+    setGenreEditSelectedId(null);
+    setGenreEditPickerOpen(false);
+    resetGenreEdit();
+    setGenreEditModalOpen(true);
+    if (!genres.length) {
+      await loadGenres();
+    }
+  };
+
+  const closeGenreEditModal = () => {
+    setGenreEditModalOpen(false);
+    setGenreEditPickerOpen(false);
+    setGenreEditSelectedId(null);
+    setGenreEditFormError("");
+    setGenreEditSuccessMessage("");
+    resetGenreEdit();
+  };
+
+  const handleSelectGenreForEdit = (genre) => {
+    const id = getGenreNumericId(genre);
+    if (id === null) return;
+    setGenreEditSelectedId(id);
+    resetGenreEdit({
+      name: genre?.name ?? genre?.Nombre ?? "",
+      description:
+        genre?.description ?? genre?.Descripcion ?? genre?.descripcion ?? "",
+    });
+    setGenreEditPickerOpen(false);
+  };
+
+  const onEditGenreSubmit = async (values) => {
+    if (!genreEditSelectedId) {
+      setGenreEditFormError("Seleccioná un género para editar");
+      return;
+    }
+    try {
+      setGenreEditSubmitting(true);
+      setGenreEditFormError("");
+      setGenreEditSuccessMessage("");
+      await updateGenre(genreEditSelectedId, {
+        name: values.name?.trim() ?? "",
+        description: values.description?.trim() ?? "",
+      });
+      await loadGenres();
+      setGenreEditSuccessMessage("Género actualizado correctamente");
+      setTimeout(() => {
+        closeGenreEditModal();
+      }, 1200);
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ??
+        err?.message ??
+        "No se pudo actualizar el género";
+      setGenreEditFormError(message);
+    } finally {
+      setGenreEditSubmitting(false);
+    }
+  };
+
+  const openGenreDeleteModal = async () => {
+    setGenreDeleteError("");
+    setSelectedGenreToDeleteId(null);
+    setGenreDeletePickerOpen(false);
+    setGenreDeleteModalOpen(true);
+    if (!genres.length) {
+      await loadGenres();
+    }
+  };
+
+  const closeGenreDeleteModal = () => {
+    setGenreDeleteModalOpen(false);
+    setGenreDeletePickerOpen(false);
+    setSelectedGenreToDeleteId(null);
+    setGenreDeleteError("");
+    setDeleteGenreLoadingId(null);
+  };
+
+  const handleSelectGenreForDelete = (genre) => {
+    const id = getGenreNumericId(genre);
+    if (id === null) return;
+    setSelectedGenreToDeleteId(id);
+    setGenreDeletePickerOpen(false);
+  };
+
+  const handleDeleteGenreSubmit = async () => {
+    if (!selectedGenreToDeleteId) {
+      alert("Seleccioná un género antes de eliminar");
+      return;
+    }
+
+    const genre = findGenreById(selectedGenreToDeleteId);
+    const displayName = genre?.name ?? genre?.Nombre ?? "el género";
+    if (!window.confirm(`¿Eliminar "${displayName}"?`)) return;
+
+    try {
+      setGenreDeleteError("");
+      setDeleteGenreLoadingId(selectedGenreToDeleteId);
+      await deleteGenre(selectedGenreToDeleteId);
+      await loadGenres();
+      alert(`Género "${displayName}" eliminado correctamente`);
+      closeGenreDeleteModal();
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ??
+        err?.message ??
+        "No se pudo eliminar el género";
+      setGenreDeleteError(message);
+    } finally {
+      setDeleteGenreLoadingId(null);
+    }
+  };
+
+  const genreSelectedForEdit = findGenreById(genreEditSelectedId);
+  const genreSelectedForDelete = findGenreById(selectedGenreToDeleteId);
+
   if (!isAuthenticated || !hasAdminRole) {
     return <Redirect href="/" />;
   }
@@ -607,7 +876,7 @@ export default function AdminPanel() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {/* Usuarios */}
           <div className="bg-[#0f1228]/50 backdrop-blur border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all neon-glow">
             <div className="flex items-center justify-between mb-4">
@@ -631,6 +900,20 @@ export default function AdminPanel() {
             <p className="text-4xl font-bold text-white">{stats.moviesCount}</p>
             <p className="text-cyan-400 text-sm mt-2">+12 esta semana</p>
           </div>
+
+          {/* Géneros */}
+          <div className="bg-[#0f1228]/50 backdrop-blur border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all neon-glow">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-gray-400 font-semibold">Géneros</h3>
+              <div className="w-12 h-12 bg-cyan-500/20 rounded-lg flex items-center justify-center border border-cyan-500/30">
+                <span className="text-cyan-400 text-xl">🎭</span>
+              </div>
+            </div>
+            <p className="text-4xl font-bold text-white">{stats.genresCount}</p>
+            <p className="text-cyan-400 text-sm mt-2">
+              Actualizado en tiempo real
+            </p>
+          </div>
         </div>
 
         {/* Acciones */}
@@ -653,6 +936,26 @@ export default function AdminPanel() {
             className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold py-4 px-6 rounded-xl transition shadow-lg hover:shadow-amber-500/40 transform hover:scale-105 duration-300"
           >
             Editar Película
+          </button>
+        </div>
+        <div className="mt-8 mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <button
+            onClick={openGenreCreateModal}
+            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold py-4 px-6 rounded-xl transition shadow-lg hover:shadow-emerald-500/40 transform hover:scale-105 duration-300"
+          >
+            + Agregar Género
+          </button>
+          <button
+            onClick={openGenreDeleteModal}
+            className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400 text-white font-bold py-4 px-6 rounded-xl transition shadow-lg hover:shadow-rose-500/40 transform hover:scale-105 duration-300"
+          >
+            Eliminar Género
+          </button>
+          <button
+            onClick={openGenreEditModal}
+            className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-bold py-4 px-6 rounded-xl transition shadow-lg hover:shadow-purple-500/40 transform hover:scale-105 duration-300"
+          >
+            Editar Género
           </button>
         </div>
         <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-1 gap-6">
@@ -1337,19 +1640,21 @@ export default function AdminPanel() {
                   {genreDropdownOpen && !genresLoading && !genresError && (
                     <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-cyan-500/40 rounded-lg shadow-xl">
                       {genres.map((genre) => {
-                        const active = selectedGenres.includes(genre.id);
+                        const genreId = getGenreNumericId(genre);
+                        if (genreId === null) return null;
+                        const active = selectedGenres.includes(genreId);
                         return (
                           <button
                             type="button"
-                            key={genre.id}
-                            onClick={() => toggleGenre(genre.id)}
+                            key={genreId}
+                            onClick={() => toggleGenre(genreId)}
                             className={`w-full text-left px-4 py-2 text-sm transition ${
                               active
                                 ? "bg-cyan-500/20 text-cyan-200"
                                 : "text-gray-200 hover:bg-cyan-500/10"
                             }`}
                           >
-                            {genre.name}
+                            {genre?.name ?? genre?.Nombre ?? `ID ${genreId}`}
                           </button>
                         );
                       })}
@@ -1364,13 +1669,13 @@ export default function AdminPanel() {
                 {selectedGenres.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-3">
                     {selectedGenres.map((id) => {
-                      const genre = genres.find((g) => g.id === id);
+                      const genre = findGenreById(id);
                       return (
                         <span
                           key={id}
                           className="px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-100 text-xs flex items-center gap-2 border border-cyan-500/30"
                         >
-                          {genre?.name ?? `ID ${id}`}
+                          {genre?.name ?? genre?.Nombre ?? `ID ${id}`}
                           <button
                             type="button"
                             className="text-cyan-200 hover:text-white"
@@ -1398,6 +1703,308 @@ export default function AdminPanel() {
                 {submitting ? "Guardando..." : "Crear película"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+      {genreCreateModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#0f1228] border border-emerald-500/40 rounded-2xl w-full max-w-lg p-6 relative">
+            <button
+              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
+              onClick={closeGenreCreateModal}
+              disabled={genreCreateSubmitting}
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-bold mb-2 text-white">
+              Agregar género
+            </h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Creá una nueva categoría para clasificar las películas.
+            </p>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={handleGenreCreateSubmit(onCreateGenreSubmit)}
+            >
+              <div>
+                <label className="text-sm text-gray-300 mb-1 block">
+                  Nombre
+                </label>
+                <input
+                  {...registerGenreCreate("name", {
+                    required: "El nombre es obligatorio",
+                    minLength: {
+                      value: 2,
+                      message: "Usá al menos 2 caracteres",
+                    },
+                  })}
+                  disabled={genreCreateSubmitting}
+                  className="w-full bg-[#1a1f3a] border border-emerald-500/30 rounded-lg px-4 py-2 text-white focus:border-emerald-400 focus:outline-none disabled:opacity-50"
+                  placeholder="Ej: Ciencia ficción"
+                />
+                {genreCreateErrors.name && (
+                  <p className="text-red-400 text-sm mt-1">
+                    {genreCreateErrors.name.message}
+                  </p>
+                )}
+              </div>
+
+              {genreCreateError && (
+                <p className="text-red-400 text-sm">{genreCreateError}</p>
+              )}
+              {genreCreateSuccess && (
+                <p className="text-emerald-400 text-sm">{genreCreateSuccess}</p>
+              )}
+              <button
+                type="submit"
+                disabled={genreCreateSubmitting}
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-60"
+              >
+                {genreCreateSubmitting ? "Guardando..." : "Crear género"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {genreEditModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#0f1228] border border-purple-500/40 rounded-2xl w-full max-w-2xl p-6 relative">
+            <button
+              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
+              onClick={closeGenreEditModal}
+              disabled={genreEditSubmitting}
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-bold mb-2 text-white">
+              Editar género
+            </h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Seleccioná un género del catálogo y actualizá su información.
+            </p>
+            {genresError && (
+              <div className="text-red-400 text-sm mb-3 flex flex-col gap-2">
+                <span>{genresError}</span>
+                <button
+                  type="button"
+                  onClick={loadGenres}
+                  disabled={genresLoading}
+                  className="self-start px-3 py-1 rounded bg-red-500/30 hover:bg-red-500/50 text-red-100 transition disabled:opacity-60"
+                >
+                  {genresLoading ? "Reintentando..." : "Reintentar"}
+                </button>
+              </div>
+            )}
+            <div className="mb-4">
+              <label className="text-sm text-gray-300 mb-1 block">
+                Género a editar
+              </label>
+              <div ref={genreEditPickerRef} className="relative">
+                <button
+                  type="button"
+                  disabled={genresLoading || !!genresError}
+                  onClick={() =>
+                    setGenreEditPickerOpen(
+                      (prev) => !prev && !genresLoading && !genresError
+                    )
+                  }
+                  className="w-full bg-[#1a1f3a] border border-purple-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-purple-400 focus:outline-none disabled:opacity-60"
+                >
+                  <span>
+                    {genreSelectedForEdit
+                      ? genreSelectedForEdit.name ??
+                        genreSelectedForEdit.Nombre ??
+                        `ID ${genreEditSelectedId}`
+                      : genresLoading
+                      ? "Cargando géneros..."
+                      : "Seleccioná un género"}
+                  </span>
+                  <span>{genreEditPickerOpen ? "▲" : "▼"}</span>
+                </button>
+                {genreEditPickerOpen && !genresLoading && !genresError && (
+                  <div className="absolute z-50 mt-2 w-full max-h-56 overflow-y-auto bg-[#0f1228] border border-purple-500/40 rounded-lg shadow-xl">
+                    {genres.length ? (
+                      genres.map((genre) => {
+                        const id = getGenreNumericId(genre);
+                        if (id === null) return null;
+                        const active = genreEditSelectedId === id;
+                        return (
+                          <button
+                            type="button"
+                            key={id}
+                            onClick={() => handleSelectGenreForEdit(genre)}
+                            className={`w-full text-left px-4 py-2 text-sm transition ${
+                              active
+                                ? "bg-purple-500/20 text-purple-100"
+                                : "text-gray-200 hover:bg-purple-500/10"
+                            }`}
+                          >
+                            {genre?.name ?? genre?.Nombre ?? `ID ${id}`}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <p className="px-4 py-2 text-sm text-gray-400">
+                        No hay géneros cargados.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={handleGenreEditSubmit(onEditGenreSubmit)}
+            >
+              <div>
+                <label className="text-sm text-gray-300 mb-1 block">
+                  Nombre
+                </label>
+                <input
+                  {...registerGenreEdit("name", {
+                    required: "El nombre es obligatorio",
+                    minLength: {
+                      value: 2,
+                      message: "Usá al menos 2 caracteres",
+                    },
+                  })}
+                  disabled={!genreEditSelectedId || genreEditSubmitting}
+                  className="w-full bg-[#1a1f3a] border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:border-purple-400 focus:outline-none disabled:opacity-60"
+                  placeholder="Nombre del género"
+                />
+                {genreEditErrors.name && (
+                  <p className="text-red-400 text-sm mt-1">
+                    {genreEditErrors.name.message}
+                  </p>
+                )}
+              </div>
+              <div></div>
+              {genreEditFormError && (
+                <p className="text-red-400 text-sm">{genreEditFormError}</p>
+              )}
+              {genreEditSuccessMessage && (
+                <p className="text-purple-300 text-sm">
+                  {genreEditSuccessMessage}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={!genreEditSelectedId || genreEditSubmitting}
+                className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-60"
+              >
+                {genreEditSubmitting ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {genreDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#0f1228] border border-rose-500/40 rounded-2xl w-full max-w-lg p-6 relative">
+            <button
+              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
+              onClick={closeGenreDeleteModal}
+              disabled={!!deleteGenreLoadingId}
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-bold mb-1 text-white">
+              Eliminar género
+            </h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Seleccioná el género que querés eliminar del catálogo.
+            </p>
+            {genresError && (
+              <div className="text-red-400 text-sm mb-3 flex flex-col gap-2">
+                <span>{genresError}</span>
+                <button
+                  type="button"
+                  onClick={loadGenres}
+                  disabled={genresLoading}
+                  className="self-start px-3 py-1 rounded bg-red-500/30 hover:bg-red-500/50 text-red-100 transition disabled:opacity-60"
+                >
+                  {genresLoading ? "Reintentando..." : "Reintentar"}
+                </button>
+              </div>
+            )}
+            {genreDeleteError && (
+              <p className="text-red-400 text-sm mb-3">{genreDeleteError}</p>
+            )}
+            <div className="mb-4">
+              <label className="text-sm text-gray-300 mb-1 block">Género</label>
+              <div ref={genreDeletePickerRef} className="relative">
+                <button
+                  type="button"
+                  disabled={genresLoading || !!genresError}
+                  onClick={() =>
+                    setGenreDeletePickerOpen(
+                      (prev) => !prev && !genresLoading && !genresError
+                    )
+                  }
+                  className="w-full bg-[#1a1f3a] border border-rose-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-rose-400 focus:outline-none disabled:opacity-60"
+                >
+                  <span>
+                    {genreSelectedForDelete
+                      ? genreSelectedForDelete.name ??
+                        genreSelectedForDelete.Nombre ??
+                        `ID ${selectedGenreToDeleteId}`
+                      : genresLoading
+                      ? "Cargando géneros..."
+                      : genres.length
+                      ? "Seleccioná un género"
+                      : "No hay géneros cargados"}
+                  </span>
+                  <span>{genreDeletePickerOpen ? "▲" : "▼"}</span>
+                </button>
+                {genreDeletePickerOpen && !genresLoading && (
+                  <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-rose-500/40 rounded-lg shadow-xl">
+                    {genres.length ? (
+                      genres.map((genre) => {
+                        const id = getGenreNumericId(genre);
+                        if (id === null) return null;
+                        const active = selectedGenreToDeleteId === id;
+                        return (
+                          <button
+                            type="button"
+                            key={id}
+                            onClick={() => handleSelectGenreForDelete(genre)}
+                            className={`w-full text-left px-4 py-2 text-sm transition ${
+                              active
+                                ? "bg-rose-500/20 text-rose-100"
+                                : "text-gray-200 hover:bg-rose-500/10"
+                            }`}
+                          >
+                            {genre?.name ?? genre?.Nombre ?? `ID ${id}`}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <p className="px-4 py-2 text-sm text-gray-400">
+                        No hay géneros disponibles.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeGenreDeleteModal}
+                disabled={!!deleteGenreLoadingId}
+                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-gray-700/40 transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteGenreSubmit}
+                disabled={!selectedGenreToDeleteId || !!deleteGenreLoadingId}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400 font-semibold disabled:opacity-50"
+              >
+                {deleteGenreLoadingId ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
