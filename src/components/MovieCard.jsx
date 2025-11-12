@@ -1,44 +1,17 @@
 import { Link } from "wouter";
-import { useEffect, useState } from "react";
 
 export default function MovieCard({
   movie,
   compact = false,
   disableLink = false,
   children,
+  saved = false,
+  onToggleSave = () => {},
 }) {
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("savedMovies");
-      const arr = raw ? JSON.parse(raw) : [];
-      setSaved(arr.includes(movie.id));
-    } catch {
-      setSaved(false);
-    }
-  }, [movie.id]);
-
-  function toggleSave(e) {
-    // prevent navigation when clicking the button inside a Link
-    if (e && e.stopPropagation) e.stopPropagation();
-    if (e && e.preventDefault) e.preventDefault();
-
-    try {
-      const raw = localStorage.getItem("savedMovies");
-      const arr = raw ? JSON.parse(raw) : [];
-      let next;
-      if (arr.includes(movie.id)) {
-        next = arr.filter((id) => id !== movie.id);
-        setSaved(false);
-      } else {
-        next = [movie.id, ...arr];
-        setSaved(true);
-      }
-      localStorage.setItem("savedMovies", JSON.stringify(next));
-    } catch (err) {
-      console.error("Could not update saved movies", err);
-    }
+  function handleToggle(e) {
+    if (e?.stopPropagation) e.stopPropagation();
+    if (e?.preventDefault) e.preventDefault();
+    onToggleSave();
   }
 
   const inner = (
@@ -62,7 +35,7 @@ export default function MovieCard({
               : "N/A"}
           </h5>
           <button
-            onClick={(e) => toggleSave(e)}
+            onClick={handleToggle}
             className={`px-4 py-2 text-sm rounded-md ${
               saved ? "bg-[#031D44] text-white" : "bg-[#89023E] text-white"
             }`}

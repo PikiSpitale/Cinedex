@@ -82,6 +82,19 @@ export default function AdminPanel() {
     }
   };
 
+  const loadMovies = async () => {
+    try {
+      const data = await getAllMovies();
+      const list = Array.isArray(data) ? data : [];
+      setStats((prev) => ({
+        ...prev,
+        moviesCount: list.length,
+      }));
+    } catch (err) {
+      console.error("Error al obtener películas", err);
+    }
+  };
+
   const loadGenres = async () => {
     try {
       setGenresLoading(true);
@@ -125,7 +138,7 @@ export default function AdminPanel() {
     const initialize = async () => {
       setPageLoading(true);
       try {
-        await Promise.all([loadUsers(), loadGenres(), loadRoles()]);
+        await Promise.all([loadUsers(), loadMovies(), loadGenres(), loadRoles()]);
       } finally {
         if (active) setPageLoading(false);
       }
@@ -308,6 +321,7 @@ export default function AdminPanel() {
         rating: values.rating ? parseFloat(values.rating) : 0,
         genreIds: genreIdsArray.map((id) => parseInt(id, 10)).filter(Boolean),
       });
+      await loadMovies();
       setSuccessMessage("Película creada correctamente");
       reset();
       setSelectedGenres([]);

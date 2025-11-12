@@ -1,32 +1,16 @@
 import { useEffect, useState } from "react";
 import MovieCard from "../components/MovieCard";
 import { getAllMovies } from "../services/movies";
+import { useAuthStore } from "../store/auth";
+import { getFavorites, addFavorite, removeFavorite } from "../services/favorites";
 
 export default function Movies() {
   const [movies, setMovies] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState(() => new Set());
 
-  // useEffect(() => {
-  //   const fetchMovies = async () => {
-  //     try {
-  //       setError("");
-  //       setLoading(true);
-  //       const data = await getAllMovies();
-  //       setMovies(data ?? []);
-  //     } catch (err) {
-  //       const message =
-  //         err?.response?.data?.message ??
-  //         err?.message ??
-  //         "Error al obtener películas";
-  //       setError(message);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   fetchMovies();
-  // }, []);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   useEffect(() => {
     const fetchMovies = async () => {
@@ -34,7 +18,6 @@ export default function Movies() {
         setError("");
         setLoading(true);
         const data = await getAllMovies();
-        console.log(movies.map((m) => m.posterUrl));
         setMovies(data ?? []);
       } catch (err) {
         const message =
@@ -49,6 +32,82 @@ export default function Movies() {
 
     fetchMovies();
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFavoriteIds(new Set());
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchFavorites = async () => {
+      try {
+        const favorites = await getFavorites();
+        if (!isMounted) return;
+        const ids = new Set(
+          (favorites ?? []).map(
+            (fav) => fav?.movieId ?? fav?.MovieId ?? fav?.id
+          )
+        );
+        setFavoriteIds(ids);
+      } catch (err) {
+        console.error("No se pudieron obtener los favoritos", err);
+      }
+    };
+
+    fetchFavorites();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]);
+
+  const handleToggleFavorite = async (movieId) => {
+    if (!isAuthenticated) {
+      alert("Debes iniciar sesión para guardar películas");
+      return;
+    }
+
+    const wasFavorite = favoriteIds.has(movieId);
+
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (wasFavorite) {
+        next.delete(movieId);
+      } else {
+        next.add(movieId);
+      }
+      return next;
+    });
+
+    try {
+      if (wasFavorite) {
+        await removeFavorite(movieId);
+      } else {
+        await addFavorite(movieId);
+      }
+    } catch (err) {
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (wasFavorite) {
+          next.add(movieId);
+        } else {
+          next.delete(movieId);
+        }
+        return next;
+      });
+
+      const status = err?.response?.status;
+      if (!wasFavorite && status === 400) {
+        alert(err?.response?.data?.message ?? "La película ya está guardada");
+      } else if (status === 401 || status === 403) {
+        alert("Tu sesión expiró, vuelve a iniciar sesión.");
+      } else {
+        alert("No se pudo actualizar tus favoritos. Inténtalo nuevamente.");
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -86,6 +145,8 @@ export default function Movies() {
               genres: movie.genres ?? [],
               rating: movie.rating ?? "N/A",
             }}
+            saved={favoriteIds.has(movie.id)}
+            onToggleSave={() => handleToggleFavorite(movie.id)}
           />
         ))}
       </div>

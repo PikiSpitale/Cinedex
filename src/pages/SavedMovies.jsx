@@ -1,22 +1,71 @@
-import { movies } from "../data/movies";
 import { useEffect, useState } from "react";
 import MovieCard from "../components/MovieCard";
+import { getFavorites, removeFavorite } from "../services/favorites";
 
 export default function SavedMovies() {
-  const [savedIds, setSavedIds] = useState([]);
+  const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const raw = localStorage.getItem("savedMovies");
-    setSavedIds(raw ? JSON.parse(raw) : []);
+    const fetchFavorites = async () => {
+      try {
+        setError("");
+        setLoading(true);
+        const data = await getFavorites();
+        setFavorites(data ?? []);
+      } catch (err) {
+        const message =
+          err?.response?.data?.message ??
+          err?.message ??
+          "No se pudieron cargar tus películas guardadas";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFavorites();
   }, []);
 
-  function remove(id) {
-    const next = savedIds.filter((s) => s !== id);
-    setSavedIds(next);
-    localStorage.setItem("savedMovies", JSON.stringify(next));
+  const handleRemove = async (movieId) => {
+    try {
+      await removeFavorite(movieId);
+      setFavorites((prev) =>
+        prev.filter((fav) => (fav.movieId ?? fav.MovieId ?? fav.id) !== movieId)
+      );
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ??
+        err?.message ??
+        "No se pudo eliminar la película guardada";
+      alert(message);
+    }
+  };
+
+  const savedList = (favorites ?? []).map((fav) => ({
+    id: fav?.movieId ?? fav?.MovieId ?? fav?.id,
+    title: fav?.title ?? fav?.Title ?? "Sin título",
+    poster_path: fav?.posterUrl ?? fav?.PosterUrl ?? "",
+    release_date: fav?.releaseDate ?? fav?.ReleaseDate ?? null,
+    rating: fav?.rating ?? fav?.Rating ?? "N/A",
+  }));
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        Cargando tus películas guardadas...
+      </div>
+    );
   }
 
-  const savedList = movies.filter((m) => savedIds.includes(m.id));
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-red-500 text-center px-4">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-[#0d1117] p-8">
@@ -39,14 +88,13 @@ export default function SavedMovies() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {savedList.map((m) => (
               <div key={m.id} className="group relative">
-                <MovieCard movie={m} compact={true} disableLink={true}>
-                  <button
-                    onClick={() => remove(m.id)}
-                    className="w-full px-3 py-2 mt-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded-md text-sm font-medium transition-all duration-300 border border-red-400/30 hover:border-red-400/60 hover:shadow-lg hover:shadow-red-500/50"
-                  >
-                    Eliminar
-                  </button>
-                </MovieCard>
+                <MovieCard
+                  movie={m}
+                  compact={true}
+                  disableLink={true}
+                  saved={true}
+                  onToggleSave={() => handleRemove(m.id)}
+                ></MovieCard>
               </div>
             ))}
           </div>
