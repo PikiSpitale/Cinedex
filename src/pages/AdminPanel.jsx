@@ -312,12 +312,12 @@ export default function AdminPanel() {
     const initialize = async () => {
       setPageLoading(true);
       try {
-        await Promise.all([
-          loadUsers(),
-          loadMovies(true),
-          loadGenres(),
-          loadRoles(),
-        ]);
+        const tasks = [loadMovies(true), loadGenres()];
+        if (hasAdminRole) {
+          tasks.unshift(loadUsers());
+          tasks.push(loadRoles());
+        }
+        await Promise.all(tasks);
       } finally {
         if (active) setPageLoading(false);
       }
@@ -393,6 +393,10 @@ export default function AdminPanel() {
 
   const hasAdminRole = user?.roles?.some((r) =>
     typeof r === "string" ? r === "Admin" : r?.name === "Admin"
+  );
+
+  const hasModRole = user?.roles?.some((r) =>
+    typeof r === "string" ? r === "Mod" : r?.name === "Mod"
   );
 
   const toGenreNumericId = (value) => {
@@ -889,7 +893,7 @@ export default function AdminPanel() {
   const genreSelectedForEdit = findGenreById(genreEditSelectedId);
   const genreSelectedForDelete = findGenreById(selectedGenreToDeleteId);
 
-  if (!isAuthenticated || !hasAdminRole) {
+  if (!isAuthenticated || (!hasModRole && !hasAdminRole)) {
     return <Redirect href="/" />;
   }
 
@@ -1001,15 +1005,17 @@ export default function AdminPanel() {
             Editar Género
           </button>
         </div>
-        <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-1 gap-6">
-          <button
-            onClick={() => openRoleModal()}
-            disabled={users.length === 0}
-            className="bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/50 transform hover:scale-105 duration-300"
-          >
-            Gestionar Roles de Usuarios
-          </button>
-        </div>
+        {hasAdminRole && (
+          <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-1 gap-6">
+            <button
+              onClick={() => openRoleModal()}
+              disabled={users.length === 0}
+              className="bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/50 transform hover:scale-105 duration-300"
+            >
+              Gestionar Roles de Usuarios
+            </button>
+          </div>
+        )}
         {usersError && (
           <p className="text-red-400 text-sm mb-8">{usersError}</p>
         )}

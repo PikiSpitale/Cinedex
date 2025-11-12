@@ -15,6 +15,9 @@ export default function Navbar() {
   const hasAdminRole = user?.roles?.some((r) =>
     typeof r === "string" ? r === "Admin" : r?.name === "Admin"
   );
+  const hasModRole = user?.roles?.some((r) =>
+    typeof r === "string" ? r === "Mod" : r?.name === "Mod"
+  );
 
   const linkClass = (path) =>
     `px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 ${
@@ -65,14 +68,12 @@ export default function Navbar() {
           <Link href="/saved" className={linkClass("/saved")}>
             Guardadas
           </Link>
-          <Link href="/forum" className={linkClass("/forum")}>
-            Foro
-          </Link>
-          {hasAdminRole && (
-            <Link href="/admin" className={linkClass("/admin")}>
-              Admin
-            </Link>
-          )}
+          {!hasModRole ||
+            (!hasAdminRole && (
+              <Link href="/admin" className={linkClass("/admin")}>
+                Admin
+              </Link>
+            ))}
           {isAuthenticated ? (
             <button
               onClick={() => handleLogout(false)}
@@ -143,13 +144,6 @@ export default function Navbar() {
               onClick={() => setMobileMenuOpen(false)}
             >
               Guardadas
-            </Link>
-            <Link
-              href="/forum"
-              className={linkClass("/forum")}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Foro
             </Link>
             <Link
               href="/add-movie"

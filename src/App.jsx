@@ -1,13 +1,13 @@
 import { Route, Switch } from "wouter";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import Home from "./pages/Home";
-import Movies from "./pages/Movies";
-import Login from "./pages/Login";
 import { lazy, Suspense } from "react";
-import SavedMovies from "./pages/SavedMovies";
-import SignIn from "./pages/SignIn";
 
+const Home = lazy(() => import("./pages/Home"));
+const Movies = lazy(() => import("./pages/Movies"));
+const Login = lazy(() => import("./pages/Login"));
+const SavedMovies = lazy(() => import("./pages/SavedMovies"));
+const SignIn = lazy(() => import("./pages/SignIn"));
 const MovieDetail = lazy(() => import("./pages/MovieDetail"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 

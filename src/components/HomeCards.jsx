@@ -1,6 +1,5 @@
 import { Link } from "wouter";
 import logoMovies from "../images/FondoPelis.png";
-import logoForum from "../images/FondoForo.png";
 import logoDashboard from "../images/FondoDashboard.png";
 import { useAuthStore } from "../store/auth";
 
@@ -53,14 +52,6 @@ export default function HomeCards() {
       title: "Explorá el catálogo",
       excerpt:
         "Descubrí miles de películas, filtra por género, año y calificación. Encuentra tus películas favoritas y guárdalas en tu lista personal.",
-    },
-    {
-      to: "/forum",
-      img: logoForum,
-      tag: "Comunidad",
-      title: "Debatí con cinéfilos",
-      excerpt:
-        "Únete a discusiones apasionantes sobre cine. Comparte reseñas, teorías y conecta con otros amantes del séptimo arte.",
     },
     {
       to: "/admin",

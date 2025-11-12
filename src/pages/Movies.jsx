@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MovieCard from "../components/MovieCard";
 import { getAllMovies } from "../services/movies";
 import { useAuthStore } from "../store/auth";
@@ -9,6 +9,8 @@ import {
 } from "../services/favorites";
 import { getAllGenres } from "../services/genres";
 
+const MOVIES_PAGE_SIZE = 20;
+
 export default function Movies() {
   const [movies, setMovies] = useState([]);
   const [error, setError] = useState("");
@@ -17,6 +19,8 @@ export default function Movies() {
   const [search, setSearch] = useState("");
   const [genres, setGenres] = useState([]);
   const [selectedGenres, setSelectedGenres] = useState(() => new Set());
+  const [visibleCount, setVisibleCount] = useState(MOVIES_PAGE_SIZE);
+  const sentinelRef = useRef(null);
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -168,6 +172,46 @@ export default function Movies() {
     });
   }, [movies, search, selectedGenres]);
 
+  useEffect(() => {
+    setVisibleCount(Math.min(MOVIES_PAGE_SIZE, filteredMovies.length));
+  }, [search, selectedGenres, filteredMovies.length]);
+
+  const visibleMovies = filteredMovies.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredMovies.length;
+
+  const loadMoreMovies = useCallback(() => {
+    setVisibleCount((prev) =>
+      Math.min(filteredMovies.length, prev + MOVIES_PAGE_SIZE)
+    );
+  }, [filteredMovies.length]);
+
+  useEffect(() => {
+    if (!hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore) {
+          loadMoreMovies();
+        }
+      },
+      {
+        rootMargin: "400px",
+      }
+    );
+
+    const current = sentinelRef.current;
+    if (current) {
+      observer.observe(current);
+    }
+
+    return () => {
+      if (current) {
+        observer.unobserve(current);
+      }
+      observer.disconnect();
+    };
+  }, [hasMore, loadMoreMovies]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
@@ -234,7 +278,7 @@ export default function Movies() {
       </div>
 
       <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-8">
-        {filteredMovies.map((movie) => (
+        {visibleMovies.map((movie) => (
           <MovieCard
             key={movie.id}
             movie={{
@@ -250,6 +294,16 @@ export default function Movies() {
           />
         ))}
       </div>
+
+      {hasMore && (
+        <div
+          ref={sentinelRef}
+          className="mt-8 text-center text-sm text-cyan-300"
+          aria-live="polite"
+        >
+          Cargando más películas...
+        </div>
+      )}
     </div>
   );
 }
