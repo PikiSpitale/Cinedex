@@ -1,70 +1,62 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "wouter";
 import { signUp, logIn } from "../services/auth";
 import { useAuthStore } from "../store/auth";
 
-const SignIn = () => {
-  const [formData, setFormData] = useState({
-    email: "",
-    userName: "",
-    password: "",
-    confirmPassword: "",
+const signUpSchema = z
+  .object({
+    email: z
+      .string()
+      .trim()
+      .min(1, "Email es requerido")
+      .email("Email no válido"),
+    userName: z
+      .string()
+      .trim()
+      .min(4, "Min. 4 caracteres"),
+    password: z.string().min(8, "Min. 8 caracteres"),
+    confirmPassword: z.string().min(1, "Confirmar contraseña es requerido"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Las contraseñas no coinciden",
   });
 
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+const SignIn = () => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: {
+      email: "",
+      userName: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
   const [formError, setFormError] = useState("");
   const [, navigate] = useLocation();
   const loginStore = useAuthStore((s) => s.login);
 
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.email) newErrors.email = "Email es requerido";
-    else if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Email no válido";
-
-    if (!formData.userName) newErrors.userName = "Usuario es requerido";
-    else if (formData.userName.length < 4)
-      newErrors.userName = "Min. 4 caracteres";
-
-    if (!formData.password) newErrors.password = "Contraseña es requerida";
-    else if (formData.password.length < 8)
-      newErrors.password = "Min. 8 caracteres";
-
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Las contraseñas no coinciden";
-    }
-    return newErrors;
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
+  const onSubmit = handleSubmit(async (values) => {
     try {
-      setLoading(true);
       setFormError("");
       await signUp({
-        userName: formData.userName,
-        email: formData.email,
-        password: formData.password,
-        confirmPassword: formData.confirmPassword,
+        userName: values.userName,
+        email: values.email,
+        password: values.password,
+        confirmPassword: values.confirmPassword,
       });
 
       // Auto login después del registro
       const data = await logIn({
-        emailOrUsername: formData.email,
-        password: formData.password,
+        emailOrUsername: values.email,
+        password: values.password,
       });
       loginStore(data);
       navigate("/movies");
@@ -74,10 +66,8 @@ const SignIn = () => {
         err?.message ??
         "No se pudo completar el registro";
       setFormError(message);
-    } finally {
-      setLoading(false);
     }
-  };
+  });
 
   return (
     <div className="flex flex-col items-center justify-start p-4">
@@ -90,20 +80,21 @@ const SignIn = () => {
             Únete a la comunidad cinéfila
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <input
                 type="email"
                 name="email"
                 placeholder="Email"
-                value={formData.email}
-                onChange={handleChange}
+                {...register("email")}
                 className={`w-full px-4 py-3 rounded-lg bg-[#1a1f3a] border ${
                   errors.email ? "border-red-500" : "border-cyan-500/30"
                 } text-white placeholder-gray-500 focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-500/50 transition-all`}
               />
               {errors.email && (
-                <p className="text-red-400 text-sm mt-1">{errors.email}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
@@ -112,14 +103,15 @@ const SignIn = () => {
                 type="text"
                 name="userName"
                 placeholder="Usuario"
-                value={formData.userName}
-                onChange={handleChange}
+                {...register("userName")}
                 className={`w-full px-4 py-3 rounded-lg bg-[#1a1f3a] border ${
                   errors.userName ? "border-red-500" : "border-cyan-500/30"
                 } text-white placeholder-gray-500 focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-500/50 transition-all`}
               />
               {errors.userName && (
-                <p className="text-red-400 text-sm mt-1">{errors.userName}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {errors.userName.message}
+                </p>
               )}
             </div>
 
@@ -128,14 +120,15 @@ const SignIn = () => {
                 type="password"
                 name="password"
                 placeholder="Contraseña"
-                value={formData.password}
-                onChange={handleChange}
+                {...register("password")}
                 className={`w-full px-4 py-3 rounded-lg bg-[#1a1f3a] border ${
                   errors.password ? "border-red-500" : "border-cyan-500/30"
                 } text-white placeholder-gray-500 focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-500/50 transition-all`}
               />
               {errors.password && (
-                <p className="text-red-400 text-sm mt-1">{errors.password}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
@@ -144,8 +137,7 @@ const SignIn = () => {
                 type="password"
                 name="confirmPassword"
                 placeholder="Confirmar Contraseña"
-                value={formData.confirmPassword}
-                onChange={handleChange}
+                {...register("confirmPassword")}
                 className={`w-full px-4 py-3 rounded-lg bg-[#1a1f3a] border ${
                   errors.confirmPassword
                     ? "border-red-500"
@@ -154,17 +146,17 @@ const SignIn = () => {
               />
               {errors.confirmPassword && (
                 <p className="text-red-400 text-sm mt-1">
-                  {errors.confirmPassword}
+                  {errors.confirmPassword.message}
                 </p>
               )}
             </div>
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={isSubmitting}
               className="w-full mt-6 px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-lg hover:from-cyan-400 hover:to-blue-400 shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 transition-all duration-300"
             >
-              {loading ? "Registrando..." : "Registrarse"}
+              {isSubmitting ? "Registrando..." : "Registrarse"}
             </button>
           </form>
           {formError && (

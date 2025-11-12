@@ -1,56 +1,48 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "wouter";
 import { logIn } from "../services/auth";
 import { useAuthStore } from "../store/auth";
 
-const Login = () => {
-  const [formData, setFormData] = useState({
-    emailOrUsername: "",
-    password: "",
-  });
+const loginSchema = z.object({
+  emailOrUsername: z
+    .string()
+    .trim()
+    .min(1, "Usuario o email es requerido")
+    .refine(
+      (value) => {
+        if (value.includes("@")) {
+          return /\S+@\S+\.\S+/.test(value);
+        }
+        return true;
+      },
+      { message: "Email no válido" },
+    ),
+  password: z.string().min(1, "Contraseña es requerida"),
+});
 
-  const [errors, setErrors] = useState({});
+const Login = () => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      emailOrUsername: "",
+      password: "",
+    },
+  });
   const [, navigate] = useLocation();
   const loginStore = useAuthStore((s) => s.login);
-  const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState("");
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    const { emailOrUsername, password } = formData;
-    if (!emailOrUsername) {
-      newErrors.emailOrUsername = "Usuario o email es requerido";
-    } else if (
-      emailOrUsername.includes("@") &&
-      !/\S+@\S+\.\S+/.test(emailOrUsername)
-    ) {
-      newErrors.emailOrUsername = "Email no válido";
-    }
-
-    if (!password) newErrors.password = "Contraseña es requerida";
-    return newErrors;
-  };
-
-  const handleChange = async (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" })); // limpia error del campo
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const newErrors = validateForm();
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
+  const onSubmit = handleSubmit(async (values) => {
     try {
       setFormError("");
-      setLoading(true);
-      const data = await logIn(formData); // backend devuelve { token, user }
+      const data = await logIn(values); // backend devuelve { token, user }
       loginStore(data); // guarda token + user en zustand
       navigate("/movies");
     } catch (err) {
@@ -59,10 +51,8 @@ const Login = () => {
         err?.message ??
         "No se pudo iniciar sesión";
       setFormError(message);
-    } finally {
-      setLoading(false);
     }
-  };
+  });
 
   return (
     <div className="flex flex-col items-center justify-start p-4">
@@ -73,14 +63,13 @@ const Login = () => {
           </h1>
           <p className="text-center text-gray-400 mb-8">Bienvenido a Cinedex</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <input
                 type="text"
                 name="emailOrUsername"
                 placeholder="Usuario o Email"
-                value={formData.emailOrUsername}
-                onChange={handleChange}
+                {...register("emailOrUsername")}
                 className={`w-full px-4 py-3 rounded-lg bg-[#1a1f3a] border ${
                   errors.emailOrUsername
                     ? "border-red-500"
@@ -89,7 +78,7 @@ const Login = () => {
               />
               {errors.emailOrUsername && (
                 <p className="text-red-400 text-sm mt-1">
-                  {errors.emailOrUsername}
+                  {errors.emailOrUsername.message}
                 </p>
               )}
             </div>
@@ -99,23 +88,24 @@ const Login = () => {
                 type="password"
                 name="password"
                 placeholder="Contraseña"
-                value={formData.password}
-                onChange={handleChange}
+                {...register("password")}
                 className={`w-full px-4 py-3 rounded-lg bg-[#1a1f3a] border ${
                   errors.password ? "border-red-500" : "border-cyan-500/30"
                 } text-white placeholder-gray-500 focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-500/50 transition-all`}
               />
               {errors.password && (
-                <p className="text-red-400 text-sm mt-1">{errors.password}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={isSubmitting}
               className="w-full mt-6 px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-lg hover:from-cyan-400 hover:to-blue-400 shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 transition-all duration-300"
             >
-              {loading ? "Ingresando..." : "Entrar"}
+              {isSubmitting ? "Ingresando..." : "Entrar"}
             </button>
           </form>
           {formError && (

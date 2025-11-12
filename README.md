@@ -1,16 +1,36 @@
-# React + Vite
+# Cinedex Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Cinedex es el frontend construido con React y Vite que consume la API principal. Este repositorio ya incluye las dependencias necesarias para arrancar, pero necesitas seguir los pasos descritos abajo para ejecutar el proyecto correctamente.
 
-Currently, two official plugins are available:
+## Requisitos previos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Node.js 18+ y npm 10+ (verifica con `node --version` / `npm --version`).
+- El backend debe estar en ejecución y accesible desde la URL que usarás en `VITE_API_URL`.
 
-## React Compiler
+## Pasos para levantar la aplicación
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+1. Instala las dependencias:
+   ```bash
+   npm install
+   ```
 
-## Expanding the ESLint configuration
+2. Ajusta la configuración de entorno en `.env`. Por defecto se apunta a `https://localhost:7019/api`, así que cámbialo si tu backend escucha en otra URL.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+3. Inicia el servidor de desarrollo:
+   ```bash
+   npm run dev -- --host 0.0.0.0 --port 5173
+   ```
+   Esto habilita conexiones desde `localhost` y redes locales. Si no necesitas cambiar el host o puerto, puedes ejecutar simplemente `npm run dev`.
+
+4. Abre `http://localhost:5173` (o el puerto que hayas configurado) en tu navegador para ver la aplicación y trabajar con Hot Module Replacement.
+
+## Control de calidad
+
+- Linting: `npm run lint`
+- Build de producción: `npm run build`
+- Vista previa del build: `npm run preview`
+
+## Notas adicionales
+
+- Si necesitas apuntar a una API en desarrollo remoto, asegúrate de actualizar `VITE_API_URL` y reiniciar el servidor de desarrollo para que cargue los nuevos valores.
+- El proyecto ya incluye `tailwindcss`, `axios`, `zustand`, `react-hook-form`, `zod` y otras dependencias clave; las actualizaciones de versión se controlan desde `package.json`.

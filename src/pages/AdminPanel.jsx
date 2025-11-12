@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../store/auth";
 import { Redirect } from "wouter";
 import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   createMovie,
   deleteMovie,
@@ -17,6 +19,49 @@ import {
 import { getAllUsers } from "../services/users";
 import { getAllRoles } from "../services/roles";
 import { updateUserRoles } from "../services/auth";
+import RoleAssignModal from "../components/modals/RoleAssignModal";
+import MovieDeleteModal from "../components/modals/MovieDeleteModal";
+import MovieEditModal from "../components/modals/MovieEditModal";
+import MovieCreateModal from "../components/modals/MovieCreateModal";
+import GenreCreateModal from "../components/modals/GenreCreateModal";
+import GenreEditModal from "../components/modals/GenreEditModal";
+import GenreDeleteModal from "../components/modals/GenreDeleteModal";
+
+const ratingFieldSchema = z
+  .union([z.string(), z.number(), z.null(), z.undefined()])
+  .refine((value) => {
+    if (value === undefined || value === null || value === "") {
+      return true;
+    }
+    const numericValue = typeof value === "number" ? value : Number(value);
+    return (
+      !Number.isNaN(numericValue) && numericValue >= 0 && numericValue <= 10
+    );
+  }, "El rating debe estar entre 0 y 10");
+
+const movieFormSchema = z.object({
+  title: z.string().trim().min(1, "El título es obligatorio"),
+  description: z.string().optional(),
+  posterPath: z.string().optional(),
+  releaseDate: z.string().optional(),
+  rating: ratingFieldSchema,
+  genreIds: z
+    .array(z.number().int().positive())
+    .min(1, "Seleccioná al menos un género"),
+});
+
+const genreNameSchema = z
+  .string()
+  .trim()
+  .min(1, "El nombre es obligatorio")
+  .refine((value) => value.length >= 2, {
+    message: "Usá al menos 2 caracteres",
+  });
+
+const genreFormSchema = z.object({
+  name: genreNameSchema,
+  description: z.string().optional(),
+});
 
 export default function AdminPanel() {
   const [stats, setStats] = useState({
@@ -99,6 +144,7 @@ export default function AdminPanel() {
     setValue,
     formState: { errors },
   } = useForm({
+    resolver: zodResolver(movieFormSchema),
     defaultValues: {
       title: "",
       description: "",
@@ -115,6 +161,7 @@ export default function AdminPanel() {
     setValue: setEditValue,
     formState: { errors: editErrors },
   } = useForm({
+    resolver: zodResolver(movieFormSchema),
     defaultValues: {
       title: "",
       description: "",
@@ -130,6 +177,7 @@ export default function AdminPanel() {
     reset: resetGenreCreate,
     formState: { errors: genreCreateErrors },
   } = useForm({
+    resolver: zodResolver(genreFormSchema),
     defaultValues: {
       name: "",
       description: "",
@@ -141,6 +189,7 @@ export default function AdminPanel() {
     reset: resetGenreEdit,
     formState: { errors: genreEditErrors },
   } = useForm({
+    resolver: zodResolver(genreFormSchema),
     defaultValues: {
       name: "",
       description: "",
@@ -282,17 +331,11 @@ export default function AdminPanel() {
   }, []);
 
   useEffect(() => {
-    register("genreIds", {
-      validate: (value) =>
-        value && value.length > 0 ? true : "Seleccioná al menos un género",
-    });
+    register("genreIds");
   }, [register]);
 
   useEffect(() => {
-    registerEdit("genreIds", {
-      validate: (value) =>
-        value && value.length > 0 ? true : "Seleccioná al menos un género",
-    });
+    registerEdit("genreIds");
   }, [registerEdit]);
 
   useEffect(() => {
@@ -972,1042 +1015,148 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {roleModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#0f1228] border border-cyan-500/40 rounded-2xl w-full max-w-lg p-6 relative">
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-              onClick={closeRoleModal}
-              disabled={roleFormSubmitting}
-            >
-              ✕
-            </button>
-            <h2 className="text-2xl font-bold mb-1 text-white">
-              Asignar roles
-            </h2>
-            <p className="text-gray-400 text-sm mb-4">
-              {selectedUser
-                ? `${selectedUser.userName ?? "Usuario sin nombre"} · ${
-                    selectedUser.email ?? "Sin email"
-                  }`
-                : "Elegí un usuario para editar sus roles."}
-            </p>
+      <RoleAssignModal
+        isOpen={roleModalOpen}
+        onClose={closeRoleModal}
+        roleFormError={roleFormError}
+        roleFormSubmitting={roleFormSubmitting}
+        handleRolesSubmit={handleRolesSubmit}
+        users={users}
+        usersRefreshing={usersRefreshing}
+        selectedUser={selectedUser}
+        userDropdownRef={userDropdownRef}
+        userDropdownOpen={userDropdownOpen}
+        setUserDropdownOpen={setUserDropdownOpen}
+        handleUserSelect={handleUserSelect}
+        roles={roles}
+        rolesLoading={rolesLoading}
+        rolesError={rolesError}
+        loadRoles={loadRoles}
+        roleDropdownRef={roleDropdownRef}
+        roleDropdownOpen={roleDropdownOpen}
+        setRoleDropdownOpen={setRoleDropdownOpen}
+        selectedRoleIds={selectedRoleIds}
+        toggleRoleSelection={toggleRoleSelection}
+      />
 
-            {roleFormError && (
-              <p className="text-red-400 text-sm mb-3">{roleFormError}</p>
-            )}
+      <MovieDeleteModal
+        isOpen={deleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        movies={movies}
+        moviesLoading={moviesLoading}
+        moviesError={moviesError}
+        loadMovies={loadMovies}
+        selectedMovie={selectedMovie}
+        selectedMovieId={selectedMovieId}
+        setSelectedMovieId={setSelectedMovieId}
+        movieDropdownRef={movieDropdownRef}
+        movieDropdownOpen={movieDropdownOpen}
+        setMovieDropdownOpen={setMovieDropdownOpen}
+        deleteMovieLoadingId={deleteMovieLoadingId}
+        handleDeleteMovieSubmit={handleDeleteMovieSubmit}
+      />
+      <MovieCreateModal
+        isOpen={isModalOpen}
+        onClose={() => setModalOpen(false)}
+        handleSubmit={handleSubmit}
+        onSubmit={onSubmit}
+        register={register}
+        errors={errors}
+        submitting={submitting}
+        formError={formError}
+        successMessage={successMessage}
+        genres={genres}
+        genresLoading={genresLoading}
+        genresError={genresError}
+        selectedGenres={selectedGenres}
+        toggleGenre={toggleGenre}
+        dropdownRef={dropdownRef}
+        genreDropdownOpen={genreDropdownOpen}
+        setGenreDropdownOpen={setGenreDropdownOpen}
+        findGenreById={findGenreById}
+        getGenreNumericId={getGenreNumericId}
+      />
+      <MovieEditModal
+        isOpen={editModalOpen}
+        onClose={closeEditModal}
+        editFormError={editFormError}
+        editSuccessMessage={editSuccessMessage}
+        editSubmitting={editSubmitting}
+        movies={movies}
+        moviesLoading={moviesLoading}
+        editSelectedMovie={editSelectedMovie}
+        editSelectedMovieId={editSelectedMovieId}
+        handleSelectMovieForEdit={handleSelectMovieForEdit}
+        editMovieDropdownRef={editMovieDropdownRef}
+        editMovieDropdownOpen={editMovieDropdownOpen}
+        setEditMovieDropdownOpen={setEditMovieDropdownOpen}
+        registerEdit={registerEdit}
+        handleEditSubmit={handleEditSubmit}
+        onEditSubmit={onEditSubmit}
+        editErrors={editErrors}
+        genres={genres}
+        genresLoading={genresLoading}
+        genresError={genresError}
+        editSelectedGenres={editSelectedGenres}
+        toggleEditGenre={toggleEditGenre}
+        editGenreDropdownRef={editGenreDropdownRef}
+        editGenreDropdownOpen={editGenreDropdownOpen}
+        setEditGenreDropdownOpen={setEditGenreDropdownOpen}
+      />
 
-            <form className="flex flex-col gap-4" onSubmit={handleRolesSubmit}>
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Usuario
-                </label>
-                <div ref={userDropdownRef} className="relative">
-                  <button
-                    type="button"
-                    disabled={!users.length || usersRefreshing}
-                    onClick={() =>
-                      setUserDropdownOpen((prev) => !prev && !!users.length)
-                    }
-                    className="w-full bg-[#1a1f3a] border border-cyan-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-cyan-400 focus:outline-none disabled:opacity-60"
-                  >
-                    <span>
-                      {selectedUser
-                        ? `${selectedUser.userName ?? "Usuario"} (${
-                            selectedUser.email ?? "Sin email"
-                          })`
-                        : usersRefreshing
-                        ? "Actualizando usuarios..."
-                        : "Seleccioná un usuario"}
-                    </span>
-                    <span>{userDropdownOpen ? "▲" : "▼"}</span>
-                  </button>
-                  {userDropdownOpen && (
-                    <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-cyan-500/40 rounded-lg shadow-xl">
-                      {users.length ? (
-                        users.map((userItem) => {
-                          const active = selectedUser?.id === userItem.id;
-                          return (
-                            <button
-                              type="button"
-                              key={userItem.id}
-                              onClick={() => handleUserSelect(userItem)}
-                              className={`w-full text-left px-4 py-2 text-sm transition ${
-                                active
-                                  ? "bg-cyan-500/20 text-cyan-200"
-                                  : "text-gray-200 hover:bg-cyan-500/10"
-                              }`}
-                            >
-                              {userItem.userName ?? "Sin nombre"} ·{" "}
-                              {userItem.email ?? "Sin email"}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <p className="text-xs text-gray-400 px-4 py-2">
-                          No hay usuarios disponibles.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+      <GenreCreateModal
+        isOpen={genreCreateModalOpen}
+        onClose={closeGenreCreateModal}
+        registerGenreCreate={registerGenreCreate}
+        handleGenreCreateSubmit={handleGenreCreateSubmit}
+        onCreateGenreSubmit={onCreateGenreSubmit}
+        genreCreateErrors={genreCreateErrors}
+        genreCreateError={genreCreateError}
+        genreCreateSuccess={genreCreateSuccess}
+        genreCreateSubmitting={genreCreateSubmitting}
+      />
 
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Roles
-                </label>
-                <div ref={roleDropdownRef} className="relative">
-                  <button
-                    type="button"
-                    disabled={
-                      !selectedUser ||
-                      rolesLoading ||
-                      (!!rolesError && !roles.length)
-                    }
-                    onClick={() =>
-                      setRoleDropdownOpen((prev) => !prev && !!selectedUser)
-                    }
-                    className="w-full bg-[#1a1f3a] border border-cyan-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-cyan-400 focus:outline-none disabled:opacity-60"
-                  >
-                    <span>
-                      {selectedRoleIds.length
-                        ? `${selectedRoleIds.length} rol(es) seleccionados`
-                        : "Seleccioná roles"}
-                    </span>
-                    <span>{roleDropdownOpen ? "▲" : "▼"}</span>
-                  </button>
-                  {roleDropdownOpen && (
-                    <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-cyan-500/40 rounded-lg shadow-xl">
-                      {!selectedUser ? (
-                        <p className="text-xs text-gray-400 px-4 py-2">
-                          Seleccioná un usuario primero.
-                        </p>
-                      ) : rolesLoading ? (
-                        <p className="text-xs text-gray-400 px-4 py-2">
-                          Cargando roles...
-                        </p>
-                      ) : rolesError && !roles.length ? (
-                        <div className="text-xs text-red-400 px-4 py-2 flex flex-col gap-2">
-                          <span>{rolesError}</span>
-                          <button
-                            type="button"
-                            onClick={loadRoles}
-                            className="self-start px-3 py-1 rounded bg-cyan-600/70 text-white"
-                          >
-                            Reintentar
-                          </button>
-                        </div>
-                      ) : roles.length ? (
-                        roles.map((role) => {
-                          const active = selectedRoleIds.includes(role.id);
-                          return (
-                            <button
-                              type="button"
-                              key={role.id}
-                              onClick={() => toggleRoleSelection(role.id)}
-                              className={`w-full text-left px-4 py-2 text-sm transition ${
-                                active
-                                  ? "bg-cyan-500/20 text-cyan-200"
-                                  : "text-gray-200 hover:bg-cyan-500/10"
-                              }`}
-                            >
-                              {role.nombre ?? role.name ?? `Rol ${role.id}`}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <p className="text-xs text-gray-400 px-4 py-2">
-                          No hay roles configurados aún.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {selectedRoleIds.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {selectedRoleIds.map((id) => {
-                      const role = roles.find((r) => r.id === id);
-                      return (
-                        <span
-                          key={id}
-                          className="px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-100 text-xs flex items-center gap-2 border border-cyan-500/30"
-                        >
-                          {role?.nombre ?? role?.name ?? `Rol ${id}`}
-                          <button
-                            type="button"
-                            className="text-cyan-200 hover:text-white"
-                            onClick={() => toggleRoleSelection(id)}
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeRoleModal}
-                  className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-gray-700/40 transition disabled:opacity-50"
-                  disabled={roleFormSubmitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={roleFormSubmitting || rolesLoading}
-                  className="px-4 py-2 rounded-lg bg-cyan-600/80 hover:bg-cyan-500 transition font-semibold disabled:opacity-50"
-                >
-                  {roleFormSubmitting ? "Guardando..." : "Guardar cambios"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <GenreEditModal
+        isOpen={genreEditModalOpen}
+        onClose={closeGenreEditModal}
+        genres={genres}
+        genresLoading={genresLoading}
+        genresError={genresError}
+        loadGenres={loadGenres}
+        genreEditPickerRef={genreEditPickerRef}
+        genreEditPickerOpen={genreEditPickerOpen}
+        setGenreEditPickerOpen={setGenreEditPickerOpen}
+        genreSelectedForEdit={genreSelectedForEdit}
+        genreEditSelectedId={genreEditSelectedId}
+        handleSelectGenreForEdit={handleSelectGenreForEdit}
+        registerGenreEdit={registerGenreEdit}
+        handleGenreEditSubmit={handleGenreEditSubmit}
+        onEditGenreSubmit={onEditGenreSubmit}
+        genreEditErrors={genreEditErrors}
+        genreEditFormError={genreEditFormError}
+        genreEditSuccessMessage={genreEditSuccessMessage}
+        genreEditSubmitting={genreEditSubmitting}
+        getGenreNumericId={getGenreNumericId}
+      />
 
-      {deleteModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#0f1228] border border-red-500/40 rounded-2xl w-full max-w-lg p-6 relative">
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
-              onClick={handleCloseDeleteModal}
-              disabled={!!deleteMovieLoadingId}
-            >
-              ✕
-            </button>
-            <h2 className="text-2xl font-bold mb-1 text-white">
-              Eliminar película
-            </h2>
-            <p className="text-gray-400 text-sm mb-4">
-              Seleccioná la película que querés eliminar del catálogo.
-            </p>
-
-            {moviesError && (
-              <div className="text-red-400 text-sm mb-4 flex flex-col gap-2">
-                <span>{moviesError}</span>
-                <button
-                  type="button"
-                  onClick={() => loadMovies(true)}
-                  disabled={moviesLoading}
-                  className="self-start px-3 py-1 rounded bg-red-500/30 hover:bg-red-500/50 text-red-100 transition disabled:opacity-60"
-                >
-                  {moviesLoading ? "Reintentando..." : "Reintentar"}
-                </button>
-              </div>
-            )}
-
-            <div>
-              <label className="text-sm text-gray-300 mb-1 block">
-                Película
-              </label>
-              <div ref={movieDropdownRef} className="relative">
-                <button
-                  type="button"
-                  disabled={moviesLoading}
-                  onClick={() => setMovieDropdownOpen((prev) => !prev)}
-                  className="w-full bg-[#1a1f3a] border border-red-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-red-400 focus:outline-none disabled:opacity-60"
-                >
-                  <span>
-                    {selectedMovie
-                      ? selectedMovie.title ?? `ID ${selectedMovie.id}`
-                      : moviesLoading
-                      ? "Cargando películas..."
-                      : movies.length
-                      ? "Seleccioná una película"
-                      : "No hay películas disponibles"}
-                  </span>
-                  <span>{movieDropdownOpen ? "▲" : "▼"}</span>
-                </button>
-                {movieDropdownOpen && (
-                  <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-red-500/40 rounded-lg shadow-xl">
-                    {moviesLoading ? (
-                      <p className="text-xs text-gray-400 px-4 py-2">
-                        Cargando películas...
-                      </p>
-                    ) : movies.length ? (
-                      movies.map((movieItem) => {
-                        const active = selectedMovieId === movieItem.id;
-                        return (
-                          <button
-                            type="button"
-                            key={movieItem.id}
-                            onClick={() => {
-                              setSelectedMovieId(movieItem.id);
-                              setMovieDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-4 py-2 text-sm transition ${
-                              active
-                                ? "bg-red-500/20 text-red-200"
-                                : "text-gray-200 hover:bg-red-500/10"
-                            }`}
-                          >
-                            {movieItem.title ?? `Película ${movieItem.id}`}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <p className="text-xs text-gray-400 px-4 py-2">
-                        No hay películas para eliminar.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-8">
-              <button
-                type="button"
-                onClick={handleCloseDeleteModal}
-                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-gray-700/40 transition disabled:opacity-50"
-                disabled={!!deleteMovieLoadingId}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteMovieSubmit}
-                disabled={!selectedMovieId || !!deleteMovieLoadingId}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 transition font-semibold text-white disabled:opacity-50"
-              >
-                {deleteMovieLoadingId ? "Eliminando..." : "Eliminar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#0f1228] border border-amber-500/40 rounded-2xl w-full max-w-2xl p-6 relative">
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
-              onClick={closeEditModal}
-              disabled={editSubmitting}
-            >
-              ✕
-            </button>
-            <h2 className="text-2xl font-bold mb-2 text-white">
-              Editar película
-            </h2>
-            <p className="text-gray-400 text-sm mb-4">
-              Seleccioná una película para precargar sus datos y actualizá los
-              campos necesarios.
-            </p>
-
-            {editFormError && (
-              <p className="text-red-400 text-sm mb-3">{editFormError}</p>
-            )}
-            {editSuccessMessage && (
-              <p className="text-emerald-400 text-sm mb-3">
-                {editSuccessMessage}
-              </p>
-            )}
-
-            <div className="mb-6">
-              <label className="text-sm text-gray-300 mb-1 block">
-                Película a editar
-              </label>
-              <div ref={editMovieDropdownRef} className="relative">
-                <button
-                  type="button"
-                  disabled={moviesLoading}
-                  onClick={() =>
-                    setEditMovieDropdownOpen((prev) => !prev && !!movies.length)
-                  }
-                  className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-amber-400 focus:outline-none disabled:opacity-60"
-                >
-                  <span>
-                    {editSelectedMovie
-                      ? editSelectedMovie.title ?? "Película seleccionada"
-                      : moviesLoading
-                      ? "Cargando películas..."
-                      : movies.length
-                      ? "Seleccioná una película"
-                      : "No hay películas disponibles"}
-                  </span>
-                  <span>{editMovieDropdownOpen ? "▲" : "▼"}</span>
-                </button>
-                {editMovieDropdownOpen && (
-                  <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-amber-500/40 rounded-lg shadow-xl">
-                    {moviesLoading ? (
-                      <p className="text-xs text-gray-400 px-4 py-2">
-                        Cargando películas...
-                      </p>
-                    ) : movies.length ? (
-                      movies.map((movieItem) => {
-                        const active = editSelectedMovieId === movieItem.id;
-                        return (
-                          <button
-                            type="button"
-                            key={movieItem.id}
-                            onClick={() => handleSelectMovieForEdit(movieItem)}
-                            className={`w-full text-left px-4 py-2 text-sm transition ${
-                              active
-                                ? "bg-amber-500/20 text-amber-200"
-                                : "text-gray-200 hover:bg-amber-500/10"
-                            }`}
-                          >
-                            {movieItem.title ?? `Película ${movieItem.id}`}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <p className="text-xs text-gray-400 px-4 py-2">
-                        No hay películas para editar.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={handleEditSubmit(onEditSubmit)}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-300 mb-1 block">
-                    Título
-                  </label>
-                  <input
-                    {...registerEdit("title", { required: true })}
-                    disabled={!editSelectedMovie || editSubmitting}
-                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
-                    placeholder="Título de la película"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-300 mb-1 block">
-                    Fecha de estreno
-                  </label>
-                  <input
-                    type="date"
-                    {...registerEdit("releaseDate")}
-                    disabled={!editSelectedMovie || editSubmitting}
-                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Descripción
-                </label>
-                <textarea
-                  {...registerEdit("description")}
-                  disabled={!editSelectedMovie || editSubmitting}
-                  className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
-                  rows={3}
-                  placeholder="Actualizá la sinopsis"
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-300 mb-1 block">
-                    Poster URL
-                  </label>
-                  <input
-                    {...registerEdit("posterPath")}
-                    disabled={!editSelectedMovie || editSubmitting}
-                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
-                    placeholder="https://..."
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-300 mb-1 block">
-                    Rating
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="10"
-                    {...registerEdit("rating")}
-                    disabled={!editSelectedMovie || editSubmitting}
-                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white focus:border-amber-400 focus:outline-none disabled:opacity-60"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Géneros
-                </label>
-                <div className="relative" ref={editGenreDropdownRef}>
-                  <button
-                    type="button"
-                    disabled={
-                      !editSelectedMovie ||
-                      genresLoading ||
-                      !!genresError ||
-                      editSubmitting
-                    }
-                    onClick={() =>
-                      !editSelectedMovie
-                        ? null
-                        : setEditGenreDropdownOpen((prev) => !prev)
-                    }
-                    className="w-full bg-[#1a1f3a] border border-amber-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-amber-400 focus:outline-none disabled:opacity-60"
-                  >
-                    <span>
-                      {editSelectedGenres.length
-                        ? "Editar géneros seleccionados"
-                        : "Seleccioná géneros"}
-                    </span>
-                    <span>{editGenreDropdownOpen ? "▲" : "▼"}</span>
-                  </button>
-                  {editGenreDropdownOpen &&
-                    !genresLoading &&
-                    !genresError &&
-                    editSelectedMovie && (
-                      <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-amber-500/40 rounded-lg shadow-xl">
-                        {genres.map((genre) => {
-                          const id = Number(genre.id ?? genre.Id);
-                          const active = editSelectedGenres.includes(id);
-                          return (
-                            <button
-                              type="button"
-                              key={`${genre.id ?? genre.Id}`}
-                              onClick={() => toggleEditGenre(id)}
-                              className={`w-full text-left px-4 py-2 text-sm transition ${
-                                active
-                                  ? "bg-amber-500/20 text-amber-200"
-                                  : "text-gray-200 hover:bg-amber-500/10"
-                              }`}
-                            >
-                              {genre.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                </div>
-                {editSelectedGenres.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {editSelectedGenres.map((id) => {
-                      const genre = genres.find(
-                        (g) => Number(g.id ?? g.Id) === id
-                      );
-                      return (
-                        <span
-                          key={id}
-                          className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-100 text-xs flex items-center gap-2 border border-amber-500/30"
-                        >
-                          {genre?.name ?? `ID ${id}`}
-                          <button
-                            type="button"
-                            className="text-amber-200 hover:text-white"
-                            onClick={() => toggleEditGenre(id)}
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-                {editErrors.genreIds && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {editErrors.genreIds.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-gray-700/40 transition disabled:opacity-50"
-                  disabled={editSubmitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={!editSelectedMovie || editSubmitting}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 transition font-semibold text-white disabled:opacity-50"
-                >
-                  {editSubmitting ? "Guardando..." : "Guardar cambios"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#0f1228] border border-cyan-500/40 rounded-2xl w-full max-w-lg p-6 relative">
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-              onClick={() => setModalOpen(false)}
-              disabled={submitting}
-            >
-              ✕
-            </button>
-            <h2 className="text-2xl font-bold mb-4 text-white">
-              Agregar Película
-            </h2>
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={handleSubmit(onSubmit)}
-            >
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Título
-                </label>
-                <input
-                  {...register("title", { required: true })}
-                  className="w-full bg-[#1a1f3a] border border-cyan-500/30 rounded-lg px-4 py-2 text-white focus:border-cyan-400 focus:outline-none"
-                  placeholder="Nombre de la película"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Descripción
-                </label>
-                <textarea
-                  {...register("description")}
-                  className="w-full bg-[#1a1f3a] border border-cyan-500/30 rounded-lg px-4 py-2 text-white focus:border-cyan-400 focus:outline-none"
-                  rows={3}
-                  placeholder="Sinopsis breve"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Poster URL
-                </label>
-                <input
-                  {...register("posterPath")}
-                  className="w-full bg-[#1a1f3a] border border-cyan-500/30 rounded-lg px-4 py-2 text-white focus:border-cyan-400 focus:outline-none"
-                  placeholder="https://..."
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-300 mb-1 block">
-                    Fecha de estreno
-                  </label>
-                  <input
-                    type="date"
-                    {...register("releaseDate")}
-                    className="w-full bg-[#1a1f3a] border border-cyan-500/30 rounded-lg px-4 py-2 text-white focus:border-cyan-400 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-300 mb-1 block">
-                    Rating
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="10"
-                    {...register("rating")}
-                    className="w-full bg-[#1a1f3a] border border-cyan-500/30 rounded-lg px-4 py-2 text-white focus:border-cyan-400 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {formError && <p className="text-red-400 text-sm">{formError}</p>}
-              {successMessage && (
-                <p className="text-green-400 text-sm">{successMessage}</p>
-              )}
-
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Géneros
-                </label>
-                <div ref={dropdownRef} className="relative">
-                  <button
-                    type="button"
-                    disabled={genresLoading || !!genresError}
-                    onClick={() => setGenreDropdownOpen((prev) => !prev)}
-                    className="w-full bg-[#1a1f3a] border border-cyan-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-cyan-400 focus:outline-none disabled:opacity-60"
-                  >
-                    <span>
-                      {selectedGenres.length
-                        ? "Editar géneros seleccionados"
-                        : "Seleccioná géneros"}
-                    </span>
-                    <span>{genreDropdownOpen ? "▲" : "▼"}</span>
-                  </button>
-                  {genreDropdownOpen && !genresLoading && !genresError && (
-                    <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-cyan-500/40 rounded-lg shadow-xl">
-                      {genres.map((genre) => {
-                        const genreId = getGenreNumericId(genre);
-                        if (genreId === null) return null;
-                        const active = selectedGenres.includes(genreId);
-                        return (
-                          <button
-                            type="button"
-                            key={genreId}
-                            onClick={() => toggleGenre(genreId)}
-                            className={`w-full text-left px-4 py-2 text-sm transition ${
-                              active
-                                ? "bg-cyan-500/20 text-cyan-200"
-                                : "text-gray-200 hover:bg-cyan-500/10"
-                            }`}
-                          >
-                            {genre?.name ?? genre?.Nombre ?? `ID ${genreId}`}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                {genresLoading ? (
-                  <p className="text-xs text-gray-400">Cargando géneros...</p>
-                ) : genresError ? (
-                  <p className="text-xs text-red-400">{genresError}</p>
-                ) : null}
-                {selectedGenres.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {selectedGenres.map((id) => {
-                      const genre = findGenreById(id);
-                      return (
-                        <span
-                          key={id}
-                          className="px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-100 text-xs flex items-center gap-2 border border-cyan-500/30"
-                        >
-                          {genre?.name ?? genre?.Nombre ?? `ID ${id}`}
-                          <button
-                            type="button"
-                            className="text-cyan-200 hover:text-white"
-                            onClick={() => toggleGenre(id)}
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-                {errors.genreIds && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {errors.genreIds.message}
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-60"
-              >
-                {submitting ? "Guardando..." : "Crear película"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-      {genreCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#0f1228] border border-emerald-500/40 rounded-2xl w-full max-w-lg p-6 relative">
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
-              onClick={closeGenreCreateModal}
-              disabled={genreCreateSubmitting}
-            >
-              ✕
-            </button>
-            <h2 className="text-2xl font-bold mb-2 text-white">
-              Agregar género
-            </h2>
-            <p className="text-gray-400 text-sm mb-4">
-              Creá una nueva categoría para clasificar las películas.
-            </p>
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={handleGenreCreateSubmit(onCreateGenreSubmit)}
-            >
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Nombre
-                </label>
-                <input
-                  {...registerGenreCreate("name", {
-                    required: "El nombre es obligatorio",
-                    minLength: {
-                      value: 2,
-                      message: "Usá al menos 2 caracteres",
-                    },
-                  })}
-                  disabled={genreCreateSubmitting}
-                  className="w-full bg-[#1a1f3a] border border-emerald-500/30 rounded-lg px-4 py-2 text-white focus:border-emerald-400 focus:outline-none disabled:opacity-50"
-                  placeholder="Ej: Ciencia ficción"
-                />
-                {genreCreateErrors.name && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {genreCreateErrors.name.message}
-                  </p>
-                )}
-              </div>
-
-              {genreCreateError && (
-                <p className="text-red-400 text-sm">{genreCreateError}</p>
-              )}
-              {genreCreateSuccess && (
-                <p className="text-emerald-400 text-sm">{genreCreateSuccess}</p>
-              )}
-              <button
-                type="submit"
-                disabled={genreCreateSubmitting}
-                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-60"
-              >
-                {genreCreateSubmitting ? "Guardando..." : "Crear género"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-      {genreEditModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#0f1228] border border-purple-500/40 rounded-2xl w-full max-w-2xl p-6 relative">
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
-              onClick={closeGenreEditModal}
-              disabled={genreEditSubmitting}
-            >
-              ✕
-            </button>
-            <h2 className="text-2xl font-bold mb-2 text-white">
-              Editar género
-            </h2>
-            <p className="text-gray-400 text-sm mb-4">
-              Seleccioná un género del catálogo y actualizá su información.
-            </p>
-            {genresError && (
-              <div className="text-red-400 text-sm mb-3 flex flex-col gap-2">
-                <span>{genresError}</span>
-                <button
-                  type="button"
-                  onClick={loadGenres}
-                  disabled={genresLoading}
-                  className="self-start px-3 py-1 rounded bg-red-500/30 hover:bg-red-500/50 text-red-100 transition disabled:opacity-60"
-                >
-                  {genresLoading ? "Reintentando..." : "Reintentar"}
-                </button>
-              </div>
-            )}
-            <div className="mb-4">
-              <label className="text-sm text-gray-300 mb-1 block">
-                Género a editar
-              </label>
-              <div ref={genreEditPickerRef} className="relative">
-                <button
-                  type="button"
-                  disabled={genresLoading || !!genresError}
-                  onClick={() =>
-                    setGenreEditPickerOpen(
-                      (prev) => !prev && !genresLoading && !genresError
-                    )
-                  }
-                  className="w-full bg-[#1a1f3a] border border-purple-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-purple-400 focus:outline-none disabled:opacity-60"
-                >
-                  <span>
-                    {genreSelectedForEdit
-                      ? genreSelectedForEdit.name ??
-                        genreSelectedForEdit.Nombre ??
-                        `ID ${genreEditSelectedId}`
-                      : genresLoading
-                      ? "Cargando géneros..."
-                      : "Seleccioná un género"}
-                  </span>
-                  <span>{genreEditPickerOpen ? "▲" : "▼"}</span>
-                </button>
-                {genreEditPickerOpen && !genresLoading && !genresError && (
-                  <div className="absolute z-50 mt-2 w-full max-h-56 overflow-y-auto bg-[#0f1228] border border-purple-500/40 rounded-lg shadow-xl">
-                    {genres.length ? (
-                      genres.map((genre) => {
-                        const id = getGenreNumericId(genre);
-                        if (id === null) return null;
-                        const active = genreEditSelectedId === id;
-                        return (
-                          <button
-                            type="button"
-                            key={id}
-                            onClick={() => handleSelectGenreForEdit(genre)}
-                            className={`w-full text-left px-4 py-2 text-sm transition ${
-                              active
-                                ? "bg-purple-500/20 text-purple-100"
-                                : "text-gray-200 hover:bg-purple-500/10"
-                            }`}
-                          >
-                            {genre?.name ?? genre?.Nombre ?? `ID ${id}`}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <p className="px-4 py-2 text-sm text-gray-400">
-                        No hay géneros cargados.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={handleGenreEditSubmit(onEditGenreSubmit)}
-            >
-              <div>
-                <label className="text-sm text-gray-300 mb-1 block">
-                  Nombre
-                </label>
-                <input
-                  {...registerGenreEdit("name", {
-                    required: "El nombre es obligatorio",
-                    minLength: {
-                      value: 2,
-                      message: "Usá al menos 2 caracteres",
-                    },
-                  })}
-                  disabled={!genreEditSelectedId || genreEditSubmitting}
-                  className="w-full bg-[#1a1f3a] border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:border-purple-400 focus:outline-none disabled:opacity-60"
-                  placeholder="Nombre del género"
-                />
-                {genreEditErrors.name && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {genreEditErrors.name.message}
-                  </p>
-                )}
-              </div>
-              <div></div>
-              {genreEditFormError && (
-                <p className="text-red-400 text-sm">{genreEditFormError}</p>
-              )}
-              {genreEditSuccessMessage && (
-                <p className="text-purple-300 text-sm">
-                  {genreEditSuccessMessage}
-                </p>
-              )}
-              <button
-                type="submit"
-                disabled={!genreEditSelectedId || genreEditSubmitting}
-                className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-60"
-              >
-                {genreEditSubmitting ? "Guardando..." : "Guardar cambios"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-      {genreDeleteModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#0f1228] border border-rose-500/40 rounded-2xl w-full max-w-lg p-6 relative">
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
-              onClick={closeGenreDeleteModal}
-              disabled={!!deleteGenreLoadingId}
-            >
-              ✕
-            </button>
-            <h2 className="text-2xl font-bold mb-1 text-white">
-              Eliminar género
-            </h2>
-            <p className="text-gray-400 text-sm mb-4">
-              Seleccioná el género que querés eliminar del catálogo.
-            </p>
-            {genresError && (
-              <div className="text-red-400 text-sm mb-3 flex flex-col gap-2">
-                <span>{genresError}</span>
-                <button
-                  type="button"
-                  onClick={loadGenres}
-                  disabled={genresLoading}
-                  className="self-start px-3 py-1 rounded bg-red-500/30 hover:bg-red-500/50 text-red-100 transition disabled:opacity-60"
-                >
-                  {genresLoading ? "Reintentando..." : "Reintentar"}
-                </button>
-              </div>
-            )}
-            {genreDeleteError && (
-              <p className="text-red-400 text-sm mb-3">{genreDeleteError}</p>
-            )}
-            <div className="mb-4">
-              <label className="text-sm text-gray-300 mb-1 block">Género</label>
-              <div ref={genreDeletePickerRef} className="relative">
-                <button
-                  type="button"
-                  disabled={genresLoading || !!genresError}
-                  onClick={() =>
-                    setGenreDeletePickerOpen(
-                      (prev) => !prev && !genresLoading && !genresError
-                    )
-                  }
-                  className="w-full bg-[#1a1f3a] border border-rose-500/30 rounded-lg px-4 py-2 text-white flex justify-between items-center focus:border-rose-400 focus:outline-none disabled:opacity-60"
-                >
-                  <span>
-                    {genreSelectedForDelete
-                      ? genreSelectedForDelete.name ??
-                        genreSelectedForDelete.Nombre ??
-                        `ID ${selectedGenreToDeleteId}`
-                      : genresLoading
-                      ? "Cargando géneros..."
-                      : genres.length
-                      ? "Seleccioná un género"
-                      : "No hay géneros cargados"}
-                  </span>
-                  <span>{genreDeletePickerOpen ? "▲" : "▼"}</span>
-                </button>
-                {genreDeletePickerOpen && !genresLoading && (
-                  <div className="absolute z-50 mt-2 w-full max-h-48 overflow-y-auto bg-[#0f1228] border border-rose-500/40 rounded-lg shadow-xl">
-                    {genres.length ? (
-                      genres.map((genre) => {
-                        const id = getGenreNumericId(genre);
-                        if (id === null) return null;
-                        const active = selectedGenreToDeleteId === id;
-                        return (
-                          <button
-                            type="button"
-                            key={id}
-                            onClick={() => handleSelectGenreForDelete(genre)}
-                            className={`w-full text-left px-4 py-2 text-sm transition ${
-                              active
-                                ? "bg-rose-500/20 text-rose-100"
-                                : "text-gray-200 hover:bg-rose-500/10"
-                            }`}
-                          >
-                            {genre?.name ?? genre?.Nombre ?? `ID ${id}`}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <p className="px-4 py-2 text-sm text-gray-400">
-                        No hay géneros disponibles.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={closeGenreDeleteModal}
-                disabled={!!deleteGenreLoadingId}
-                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-gray-700/40 transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteGenreSubmit}
-                disabled={!selectedGenreToDeleteId || !!deleteGenreLoadingId}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400 font-semibold disabled:opacity-50"
-              >
-                {deleteGenreLoadingId ? "Eliminando..." : "Eliminar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GenreDeleteModal
+        isOpen={genreDeleteModalOpen}
+        onClose={closeGenreDeleteModal}
+        genres={genres}
+        genresLoading={genresLoading}
+        genresError={genresError}
+        loadGenres={loadGenres}
+        genreDeletePickerRef={genreDeletePickerRef}
+        genreDeletePickerOpen={genreDeletePickerOpen}
+        setGenreDeletePickerOpen={setGenreDeletePickerOpen}
+        genreSelectedForDelete={genreSelectedForDelete}
+        selectedGenreToDeleteId={selectedGenreToDeleteId}
+        handleSelectGenreForDelete={handleSelectGenreForDelete}
+        deleteGenreLoadingId={deleteGenreLoadingId}
+        handleDeleteGenreSubmit={handleDeleteGenreSubmit}
+        genreDeleteError={genreDeleteError}
+        getGenreNumericId={getGenreNumericId}
+      />
     </div>
   );
 }

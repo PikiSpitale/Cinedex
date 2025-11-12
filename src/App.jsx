@@ -6,7 +6,6 @@ import Movies from "./pages/Movies";
 import Login from "./pages/Login";
 import { lazy, Suspense } from "react";
 import SavedMovies from "./pages/SavedMovies";
-import Forum from "./pages/Forum";
 import SignIn from "./pages/SignIn";
 
 const MovieDetail = lazy(() => import("./pages/MovieDetail"));
@@ -34,7 +33,6 @@ export default function App() {
             <Route path="/movies" component={Movies} />
             <Route path="/movies/:id" component={MovieDetail} />
             <Route path="/saved" component={SavedMovies} />
-            <Route path="/forum" component={Forum} />
             <Route path="/signin" component={SignIn} />
             <Route path="/admin" component={AdminPanel} />
           </Switch>
