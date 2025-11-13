@@ -17,8 +17,8 @@ export default function MovieDeleteModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-      <div className="bg-[#0f1228] border border-red-500/40 rounded-2xl w-full max-w-lg p-6 relative">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-3 sm:px-6 py-6 overflow-y-auto">
+      <div className="bg-[#0f1228] border border-red-500/40 rounded-2xl w-full max-w-[300px] sm:max-w-lg p-4 sm:p-6 relative">
         <button
           className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
           onClick={onClose}
@@ -26,7 +26,9 @@ export default function MovieDeleteModal({
         >
           ✕
         </button>
-        <h2 className="text-2xl font-bold mb-1 text-white">Eliminar película</h2>
+        <h2 className="text-2xl font-bold mb-1 text-white">
+          Eliminar película
+        </h2>
         <p className="text-gray-400 text-sm mb-4">
           Seleccioná la película que querés eliminar del catálogo.
         </p>

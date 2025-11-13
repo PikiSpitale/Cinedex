@@ -28,8 +28,8 @@ export default function MovieEditModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-      <div className="bg-[#0f1228] border border-amber-500/40 rounded-2xl w-full max-w-2xl p-6 relative">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-3 sm:px-6 py-6 overflow-y-auto">
+      <div className="bg-[#0f1228] border border-amber-500/40 rounded-2xl w-full max-w-[300px] sm:max-w-lg p-4 sm:p-6 relative">
         <button
           className="absolute top-4 right-4 text-gray-400 hover:text-white disabled:opacity-50"
           onClick={onClose}
@@ -39,17 +39,15 @@ export default function MovieEditModal({
         </button>
         <h2 className="text-2xl font-bold mb-2 text-white">Editar película</h2>
         <p className="text-gray-400 text-sm mb-4">
-          Seleccioná una película para precargar sus datos y actualizá los campos
-          necesarios.
+          Seleccioná una película para precargar sus datos y actualizá los
+          campos necesarios.
         </p>
 
         {editFormError && (
           <p className="text-red-400 text-sm mb-3">{editFormError}</p>
         )}
         {editSuccessMessage && (
-          <p className="text-emerald-400 text-sm mb-3">
-            {editSuccessMessage}
-          </p>
+          <p className="text-emerald-400 text-sm mb-3">{editSuccessMessage}</p>
         )}
 
         <div className="mb-6">

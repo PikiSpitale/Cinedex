@@ -43,6 +43,10 @@ export default function HomeCards() {
   const isAdmin = user?.roles?.some((role) =>
     typeof role === "string" ? role === "Admin" : role?.name === "Admin"
   );
+  const isMod = user?.roles?.some((role) =>
+    typeof role === "string" ? role === "Mod" : role?.name === "Mod"
+  );
+  const isAdminOrMod = isAdmin || isMod;
 
   const cards = [
     {
@@ -66,7 +70,7 @@ export default function HomeCards() {
   return (
     <section className="grid gap-4 sm:gap-6 mb-12 sm:mb-20 px-2">
       {cards
-        .filter((c) => (c.to === "/admin" ? isAdmin : true))
+        .filter((c) => (c.to === "/admin" ? isAdminOrMod : true))
         .map((c) => (
           <Card key={c.title} {...c} />
         ))}

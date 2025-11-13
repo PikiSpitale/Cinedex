@@ -18,7 +18,7 @@ export default function Navbar() {
   const hasModRole = user?.roles?.some((r) =>
     typeof r === "string" ? r === "Mod" : r?.name === "Mod"
   );
-
+  const hasAdminOrMod = hasAdminRole || hasModRole;
   const linkClass = (path) =>
     `px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 ${
       location === path
@@ -68,12 +68,11 @@ export default function Navbar() {
           <Link href="/saved" className={linkClass("/saved")}>
             Guardadas
           </Link>
-          {!hasModRole ||
-            (!hasAdminRole && (
-              <Link href="/admin" className={linkClass("/admin")}>
-                Admin
-              </Link>
-            ))}
+          {hasAdminOrMod && (
+            <Link href="/admin" className={linkClass("/admin")}>
+              Admin
+            </Link>
+          )}
           {isAuthenticated ? (
             <button
               onClick={() => handleLogout(false)}
@@ -145,13 +144,15 @@ export default function Navbar() {
             >
               Guardadas
             </Link>
-            <Link
-              href="/add-movie"
-              className={linkClass("/add-movie")}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Cargar
-            </Link>
+            {hasAdminOrMod && (
+              <Link
+                href="/admin"
+                className={linkClass("/admin")}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Admin
+              </Link>
+            )}
             {isAuthenticated ? (
               <button
                 onClick={() => handleLogout(true)}

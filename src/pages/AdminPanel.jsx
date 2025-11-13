@@ -195,7 +195,6 @@ export default function AdminPanel() {
       description: "",
     },
   });
-
   const loadUsers = async (withSpinner = false) => {
     try {
       if (withSpinner) setUsersRefreshing(true);
@@ -316,6 +315,8 @@ export default function AdminPanel() {
         if (hasAdminRole) {
           tasks.unshift(loadUsers());
           tasks.push(loadRoles());
+        } else if (hasModRole) {
+          tasks.unshift(loadUsers());
         }
         await Promise.all(tasks);
       } finally {
@@ -933,7 +934,6 @@ export default function AdminPanel() {
               </div>
             </div>
             <p className="text-4xl font-bold text-white">{stats.usersCount}</p>
-            <p className="text-cyan-400 text-sm mt-2">+5 esta semana</p>
           </div>
 
           {/* Películas */}
@@ -945,7 +945,6 @@ export default function AdminPanel() {
               </div>
             </div>
             <p className="text-4xl font-bold text-white">{stats.moviesCount}</p>
-            <p className="text-cyan-400 text-sm mt-2">+12 esta semana</p>
           </div>
 
           {/* Géneros */}
@@ -957,9 +956,6 @@ export default function AdminPanel() {
               </div>
             </div>
             <p className="text-4xl font-bold text-white">{stats.genresCount}</p>
-            <p className="text-cyan-400 text-sm mt-2">
-              Actualizado en tiempo real
-            </p>
           </div>
         </div>
 

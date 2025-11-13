@@ -6,8 +6,6 @@ export default function MovieDetail() {
   const { id } = useParams();
   const [movie, setMovie] = useState(null);
   const [rating, setRating] = useState(0);
-  const [review, setReview] = useState("");
-  const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -49,8 +47,6 @@ export default function MovieDetail() {
       // ignore
     }
   }, [rating, movie]);
-
-  const handleSave = () => setSaved(true);
 
   if (loading) {
     return (
@@ -119,29 +115,6 @@ export default function MovieDetail() {
                   ))}
                 </div>
               </div>
-
-              <div className="mt-4">
-                <p className="font-semibold text-white mb-2">Dejá tu reseña:</p>
-                <textarea
-                  className="w-full bg-[#1a1f3a] p-4 rounded-lg text-gray-100 border border-cyan-500/30 focus:border-cyan-400 focus:shadow-lg focus:shadow-cyan-500/50 focus:outline-none transition-all"
-                  rows="4"
-                  value={review}
-                  onChange={(e) => setReview(e.target.value)}
-                  placeholder="Escribí tu opinión sobre la película..."
-                />
-              </div>
-
-              <button
-                onClick={handleSave}
-                disabled={saved}
-                className={`mt-6 py-3 px-6 rounded-lg font-semibold transition ${
-                  saved
-                    ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                    : "bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg hover:shadow-cyan-500/50"
-                }`}
-              >
-                {saved ? "✓ Guardada en tu lista" : "Guardar en mi lista"}
-              </button>
             </div>
           </>
         ) : (
