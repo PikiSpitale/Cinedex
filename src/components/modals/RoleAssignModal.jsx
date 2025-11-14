@@ -24,8 +24,11 @@ export default function RoleAssignModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-3 sm:px-6 py-6 overflow-y-auto">
-      <div className="bg-[#0f1228] border border-cyan-500/40 rounded-2xl w-full max-w-[300px] sm:max-w-lg p-4 sm:p-6 relative">
+    <div
+      className="fixed inset-0 bg-black/70 flex items-start justify-center 
+                overflow-y-auto z-50 px-3 sm:px-6 py-6"
+    >
+      <div className="bg-[#0f1228] border border-cyan-500/40 rounded-2xl w-full  max-w-md sm:max-w-lg lg:max-w-xl p-4 sm:p-6 relative">
         <button
           className="absolute top-4 right-4 text-gray-400 hover:text-white"
           onClick={onClose}

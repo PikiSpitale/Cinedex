@@ -912,13 +912,13 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#0f1228] to-[#12152f] text-white p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#0f1228] to-[#12152f] text-white p-8 overflow-x-hidden">
+      <div className="w-full max-w-md sm:max-w-xl md:max-w-3xl lg:max-w-7xl mx-auto px-2">
         <div className="mb-12 text-center">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent mb-2">
+          <h1 className="text-[clamp(1.6rem,4vw,3rem)] font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent mb-2 whitespace-normal">
             Panel de Administración
           </h1>
-          <p className="text-gray-400">
+          <p className="text-[clamp(0.8rem,2.3vw,1.6rem)] text-gray-400">
             Bienvenido al centro de control de Cinedex
           </p>
         </div>
@@ -960,7 +960,7 @@ export default function AdminPanel() {
         </div>
 
         {/* Acciones */}
-        <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-10 mb-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 w-full">
           <button
             onClick={() => setModalOpen(true)}
             className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 duration-300"
@@ -981,7 +981,7 @@ export default function AdminPanel() {
             Editar Película
           </button>
         </div>
-        <div className="mt-8 mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-10 mb-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 w-full">
           <button
             onClick={openGenreCreateModal}
             className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold py-4 px-6 rounded-xl transition shadow-lg hover:shadow-emerald-500/40 transform hover:scale-105 duration-300"
@@ -1002,7 +1002,7 @@ export default function AdminPanel() {
           </button>
         </div>
         {hasAdminRole && (
-          <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-1 gap-6">
+          <div className="mt-10 mb-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-4 sm:gap-6 w-full">
             <button
               onClick={() => openRoleModal()}
               disabled={users.length === 0}

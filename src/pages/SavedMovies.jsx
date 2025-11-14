@@ -1,13 +1,21 @@
 import { useEffect, useState } from "react";
 import MovieCard from "../components/MovieCard";
 import { getFavorites, removeFavorite } from "../services/favorites";
+import { useAuthStore } from "../store/auth";
+import { useLocation } from "wouter";
 
 export default function SavedMovies() {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const [, navigate] = useLocation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/", { replace: true });
+      return;
+    }
+
     const fetchFavorites = async () => {
       try {
         setError("");
@@ -26,7 +34,7 @@ export default function SavedMovies() {
     };
 
     fetchFavorites();
-  }, []);
+  }, [isAuthenticated, navigate]);
 
   const handleRemove = async (movieId) => {
     try {

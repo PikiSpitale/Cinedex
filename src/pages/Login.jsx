@@ -18,7 +18,7 @@ const loginSchema = z.object({
         }
         return true;
       },
-      { message: "Email no válido" },
+      { message: "Email no válido" }
     ),
   password: z.string().min(1, "Contraseña es requerida"),
 });
@@ -44,7 +44,7 @@ const Login = () => {
       setFormError("");
       const data = await logIn(values); // backend devuelve { token, user }
       loginStore(data); // guarda token + user en zustand
-      navigate("/movies");
+      navigate("/");
     } catch (err) {
       const message =
         err?.response?.data?.message ??

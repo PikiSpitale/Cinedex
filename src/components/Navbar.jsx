@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, Redirect, useLocation } from "wouter";
 import logo from "../images/CinedexLogo.png";
 import { useState } from "react";
 import { useAuthStore } from "../store/auth";
@@ -7,10 +7,10 @@ import { logOut } from "../services/auth";
 export default function Navbar() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logoutStore = useAuthStore((s) => s.logout);
-  const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const user = useAuthStore((s) => s.user);
+  const [location, navigate] = useLocation();
 
   const hasAdminRole = user?.roles?.some((r) =>
     typeof r === "string" ? r === "Admin" : r?.name === "Admin"
@@ -19,6 +19,7 @@ export default function Navbar() {
     typeof r === "string" ? r === "Mod" : r?.name === "Mod"
   );
   const hasAdminOrMod = hasAdminRole || hasModRole;
+
   const linkClass = (path) =>
     `px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 ${
       location === path
@@ -36,13 +37,16 @@ export default function Navbar() {
     } finally {
       logoutStore();
       if (closeMenu) setMobileMenuOpen(false);
+      if (location !== "/") navigate("/");
       setLoggingOut(false);
     }
   };
 
+  console.log("User roles:", user?.roles);
+
   return (
     <nav className="bg-gradient-to-r from-[#0f1228] to-[#12152f] border-b border-[#00d9ff]/20 backdrop-blur-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-3 sm:py-4 flex justify-between items-center gap-4">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-2 flex justify-between items-center gap-4">
         <Link
           href="/"
           className="flex items-center gap-1 sm:gap-2 select-none hover:opacity-80 transition-opacity flex-shrink-0"
@@ -51,7 +55,7 @@ export default function Navbar() {
           <img
             src={logo || "/placeholder.svg"}
             alt="Cinedex Logo"
-            className="h-6 sm:h-8 w-6 sm:w-8 object-contain"
+            className="h-10 w-10 object-contain"
           />
           <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#ff0080] bg-clip-text text-transparent">
             Cinedex
@@ -65,9 +69,11 @@ export default function Navbar() {
           <Link href="/movies" className={linkClass("/movies")}>
             Películas
           </Link>
-          <Link href="/saved" className={linkClass("/saved")}>
-            Guardadas
-          </Link>
+          {isAuthenticated && (
+            <Link href="/saved" className={linkClass("/saved")}>
+              Guardadas
+            </Link>
+          )}
           {hasAdminOrMod && (
             <Link href="/admin" className={linkClass("/admin")}>
               Admin
@@ -136,14 +142,15 @@ export default function Navbar() {
             >
               Películas
             </Link>
-
-            <Link
-              href="/saved"
-              className={linkClass("/saved")}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Guardadas
-            </Link>
+            {isAuthenticated && (
+              <Link
+                href="/saved"
+                className={linkClass("/saved")}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Guardadas
+              </Link>
+            )}
             {hasAdminOrMod && (
               <Link
                 href="/admin"
