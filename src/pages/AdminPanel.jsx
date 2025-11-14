@@ -81,6 +81,9 @@ export default function AdminPanel() {
   const [genres, setGenres] = useState([]);
   const [genresLoading, setGenresLoading] = useState(false);
   const [genresError, setGenresError] = useState("");
+  const [isGenresModalOpen, setGenresModalOpen] = useState(false);
+  const [isUsersModalOpen, setUsersModalOpen] = useState(false);
+  const [isMoviesModalOpen, setMoviesModalOpen] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [genreDropdownOpen, setGenreDropdownOpen] = useState(false);
   const editGenreDropdownRef = useRef(null);
@@ -180,7 +183,6 @@ export default function AdminPanel() {
     resolver: zodResolver(genreFormSchema),
     defaultValues: {
       name: "",
-      description: "",
     },
   });
   const {
@@ -192,7 +194,6 @@ export default function AdminPanel() {
     resolver: zodResolver(genreFormSchema),
     defaultValues: {
       name: "",
-      description: "",
     },
   });
   const loadUsers = async (withSpinner = false) => {
@@ -407,14 +408,7 @@ export default function AdminPanel() {
 
   const getGenreNumericId = (genre) => {
     if (!genre) return null;
-    return toGenreNumericId(
-      genre.id ??
-        genre.Id ??
-        genre.genreId ??
-        genre.genreID ??
-        genre.GenreId ??
-        genre.GenreID
-    );
+    return toGenreNumericId(genre.id);
   };
 
   const findGenreById = (genreId) =>
@@ -614,20 +608,11 @@ export default function AdminPanel() {
         .filter((id) => Number.isFinite(id)) ?? [];
     setEditSelectedGenres(genreIds);
     resetEdit({
-      title: movie.title ?? movie.Title ?? "",
-      description: movie.description ?? movie.Description ?? "",
-      posterPath:
-        movie.posterPath ??
-        movie.poster_path ??
-        movie.posterUrl ??
-        movie.PosterPath ??
-        "",
-      releaseDate:
-        movie.releaseDate ?? movie.release_date ?? movie.ReleaseDate ?? "",
-      rating:
-        typeof movie.rating === "number"
-          ? movie.rating
-          : movie.Rating ?? movie.rating ?? "",
+      title: movie.title ?? "",
+      description: movie.description ?? "",
+      posterPath: movie.posterPath ?? "",
+      releaseDate: movie.releaseDate ?? "",
+      rating: typeof movie.rating === "number" ? movie.rating : "",
       genreIds,
     });
     setEditValue("genreIds", genreIds, { shouldValidate: true });
@@ -704,6 +689,104 @@ export default function AdminPanel() {
     setMovieDropdownOpen(false);
     setSelectedMovieId(null);
     setDeleteMovieLoadingId(null);
+  };
+
+  const openGenresModal = () => {
+    setGenresModalOpen(true);
+  };
+
+  const closeGenresModal = () => {
+    setGenresModalOpen(false);
+  };
+
+  const openUsersModal = async () => {
+    setUsersModalOpen(true);
+    if (!users.length) {
+      await loadUsers(true);
+    }
+  };
+
+  const closeUsersModal = () => {
+    setUsersModalOpen(false);
+  };
+
+  const openMoviesModal = async () => {
+    setMoviesModalOpen(true);
+    if (!movies.length) {
+      await loadMovies(true);
+    }
+  };
+
+  const closeMoviesModal = () => {
+    setMoviesModalOpen(false);
+  };
+
+  const renderGenreItem = (genre) => {
+    const genreId =
+      genre?.id ?? genre?.Id ?? genre?.ID ?? genre?.genreId ?? genre?.GenreId;
+    const genreName =
+      genre?.name ??
+      genre?.Nombre ??
+      genre?.title ??
+      genre?.Titulo ??
+      "Sin nombre";
+
+    return (
+      <li
+        key={genreId ?? genreName}
+        className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3"
+      >
+        <p className="font-semibold text-white">{genreName}</p>
+      </li>
+    );
+  };
+
+  const renderUserItem = (user) => {
+    const userId = user?.id;
+    const userName = user?.userName ?? "Usuario sin nombre";
+    const email = user?.email ?? "Sin email";
+    const userRoles = Array.isArray(user?.roles)
+      ? user.roles.filter(Boolean)
+      : [];
+
+    return (
+      <li
+        key={userId ?? userName}
+        className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3"
+      >
+        <p className="font-semibold text-white">{userName}</p>
+        <p className="text-sm text-gray-400 mt-1">{email}</p>
+        {userRoles.length > 0 && (
+          <p className="text-xs text-cyan-200 mt-1">
+            Roles: {userRoles.join(", ")}
+          </p>
+        )}
+      </li>
+    );
+  };
+
+  const renderMovieItem = (movie) => {
+    const movieId = movie?.id;
+    const title = movie?.title ?? "Sin título";
+    const description = movie?.description ?? "";
+    const release = movie?.releaseDate ?? "";
+    const rating = movie?.rating ?? "N/A";
+
+    return (
+      <li
+        key={movieId ?? title}
+        className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3"
+      >
+        <p className="font-semibold text-white">{title}</p>
+        <p className="text-sm text-gray-400 mt-1">
+          {description || "Sin descripción"}
+        </p>
+        <div className="mt-2 text-xs text-gray-400 flex flex-wrap gap-3">
+          {release && <span>Estreno: {release}</span>}
+          <span>Rating: {rating}</span>
+        </div>
+      </li>
+    );
   };
 
   const handleDeleteMovieSubmit = async () => {
@@ -803,8 +886,6 @@ export default function AdminPanel() {
     setGenreEditSelectedId(id);
     resetGenreEdit({
       name: genre?.name ?? genre?.Nombre ?? "",
-      description:
-        genre?.description ?? genre?.Descripcion ?? genre?.descripcion ?? "",
     });
     setGenreEditPickerOpen(false);
   };
@@ -820,7 +901,6 @@ export default function AdminPanel() {
       setGenreEditSuccessMessage("");
       await updateGenre(genreEditSelectedId, {
         name: values.name?.trim() ?? "",
-        description: values.description?.trim() ?? "",
       });
       await loadGenres();
       setGenreEditSuccessMessage("Género actualizado correctamente");
@@ -926,7 +1006,12 @@ export default function AdminPanel() {
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {/* Usuarios */}
-          <div className="bg-[#0f1228]/50 backdrop-blur border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all neon-glow">
+          <button
+            type="button"
+            onClick={openUsersModal}
+            className="w-full text-left bg-[#0f1228]/50 backdrop-blur border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all neon-glow focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-[#0a0e27] focus-visible:ring-offset-2"
+            aria-label="Ver listado de usuarios"
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-gray-400 font-semibold">Usuarios</h3>
               <div className="w-12 h-12 bg-cyan-500/20 rounded-lg flex items-center justify-center border border-cyan-500/30">
@@ -934,10 +1019,15 @@ export default function AdminPanel() {
               </div>
             </div>
             <p className="text-4xl font-bold text-white">{stats.usersCount}</p>
-          </div>
+          </button>
 
           {/* Películas */}
-          <div className="bg-[#0f1228]/50 backdrop-blur border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all neon-glow">
+          <button
+            type="button"
+            onClick={openMoviesModal}
+            className="w-full text-left bg-[#0f1228]/50 backdrop-blur border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all neon-glow focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-[#0a0e27] focus-visible:ring-offset-2"
+            aria-label="Ver listado de películas"
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-gray-400 font-semibold">Películas</h3>
               <div className="w-12 h-12 bg-cyan-500/20 rounded-lg flex items-center justify-center border border-cyan-500/30">
@@ -945,10 +1035,15 @@ export default function AdminPanel() {
               </div>
             </div>
             <p className="text-4xl font-bold text-white">{stats.moviesCount}</p>
-          </div>
+          </button>
 
           {/* Géneros */}
-          <div className="bg-[#0f1228]/50 backdrop-blur border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all neon-glow">
+          <button
+            type="button"
+            onClick={openGenresModal}
+            className="w-full text-left bg-[#0f1228]/50 backdrop-blur border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all neon-glow focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-[#0a0e27] focus-visible:ring-offset-2"
+            aria-label="Ver listado de géneros"
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-gray-400 font-semibold">Géneros</h3>
               <div className="w-12 h-12 bg-cyan-500/20 rounded-lg flex items-center justify-center border border-cyan-500/30">
@@ -956,7 +1051,7 @@ export default function AdminPanel() {
               </div>
             </div>
             <p className="text-4xl font-bold text-white">{stats.genresCount}</p>
-          </div>
+          </button>
         </div>
 
         {/* Acciones */}
@@ -1159,6 +1254,101 @@ export default function AdminPanel() {
         genreDeleteError={genreDeleteError}
         getGenreNumericId={getGenreNumericId}
       />
+      <ListModal
+        isOpen={isGenresModalOpen}
+        onClose={closeGenresModal}
+        title="Géneros cargados"
+        loading={genresLoading}
+        error={genresError}
+        items={genres}
+        emptyMessage="No hay géneros cargados por el momento."
+        renderItem={renderGenreItem}
+      />
+      <ListModal
+        isOpen={isUsersModalOpen}
+        onClose={closeUsersModal}
+        title="Usuarios registrados"
+        loading={usersRefreshing}
+        error={usersError}
+        items={users}
+        emptyMessage="No hay usuarios registrados."
+        renderItem={renderUserItem}
+      />
+      <ListModal
+        isOpen={isMoviesModalOpen}
+        onClose={closeMoviesModal}
+        title="Películas cargadas"
+        loading={moviesLoading}
+        error={moviesError}
+        items={movies}
+        emptyMessage="No hay películas cargadas."
+        renderItem={renderMovieItem}
+      />
+    </div>
+  );
+}
+
+function ListModal({
+  isOpen,
+  onClose,
+  title,
+  loading,
+  error,
+  items = [],
+  emptyMessage,
+  renderItem,
+}) {
+  if (!isOpen) {
+    return null;
+  }
+
+  const normalizedTitle = (title ?? "").toLowerCase();
+  const loadingLabel = `Cargando ${normalizedTitle || "datos"}...`;
+  const hasItems = Array.isArray(items) && items.length > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+      <div
+        className="absolute inset-0 bg-black/70"
+        onClick={onClose}
+        role="presentation"
+      />
+      <div
+        className="relative w-full max-w-2xl rounded-[28px] border border-cyan-500/30 bg-[#0c111f] shadow-2xl overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="list-modal-title"
+      >
+        <header className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <h2
+            id="list-modal-title"
+            className="text-lg font-semibold text-white"
+          >
+            {title}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded"
+            aria-label={`Cerrar ${title?.toLowerCase() ?? "listado"}`}
+          >
+            ×
+          </button>
+        </header>
+        <div className="max-h-[70vh] overflow-y-auto space-y-3 p-6">
+          {loading ? (
+            <p className="text-sm text-gray-400">{loadingLabel}</p>
+          ) : error ? (
+            <p className="text-sm text-red-400">{error}</p>
+          ) : !hasItems ? (
+            <p className="text-sm text-gray-400">{emptyMessage}</p>
+          ) : (
+            <ul className="space-y-3">
+              {items.map((item) => renderItem(item))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
